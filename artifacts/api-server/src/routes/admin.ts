@@ -289,4 +289,28 @@ router.put("/content/:id", async (req: Request, res: Response): Promise<void> =>
   res.json(updated);
 });
 
+// DELETE /api/admin/content/:id
+router.delete("/content/:id", async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(contentChunksTable).where(eq(contentChunksTable.id, id));
+  res.json({ success: true });
+});
+
+// POST /api/admin/resources/import-url
+router.post("/resources/import-url", async (req: Request, res: Response): Promise<void> => {
+  const { url, title, description, type, category } = req.body as {
+    url: string; title: string; description?: string; type?: string; category?: string;
+  };
+  if (!url || !title) { res.status(400).json({ error: "url and title are required" }); return; }
+  try {
+    const [resource] = await db.insert(resourcesTable).values({
+      url, title, description, type: type || "link", category: category || "general",
+      isVisible: true, isFeatured: false,
+    }).returning();
+    res.status(201).json(resource);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to import resource" });
+  }
+});
+
 export default router;

@@ -94,6 +94,19 @@ router.post("/:id/translate", requireAuth, async (req: Request, res: Response): 
   res.json({ translatedText: content, fromCache: false });
 });
 
+// GET /api/resources/:id/ask-context — returns resource context for AI chat
+router.get("/:id/ask-context", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const [resource] = await db.select().from(resourcesTable).where(eq(resourcesTable.id, id));
+  if (!resource) { res.status(404).json({ error: "Resource not found" }); return; }
+  const context = [
+    resource.title,
+    resource.description || "",
+    resource.url,
+  ].filter(Boolean).join("\n");
+  res.json({ resourceId: id, context, title: resource.title, url: resource.url });
+});
+
 // POST /api/resources/suggest
 router.post("/suggest", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user: User }).user;

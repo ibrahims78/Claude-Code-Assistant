@@ -15,6 +15,9 @@ import ProfilePage from "@/pages/ProfilePage";
 import ResourcesPage from "@/pages/ResourcesPage";
 import AdminPage from "@/pages/AdminPage";
 import AdminSettingsPage from "@/pages/AdminSettingsPage";
+import AdminUsersPage from "@/pages/AdminUsersPage";
+import AdminLogsPage from "@/pages/AdminLogsPage";
+import AdminResourcesPage from "@/pages/AdminResourcesPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -59,6 +62,9 @@ function AppRoutes() {
         <Route path="/resources" component={ResourcesPage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/admin/settings" component={AdminSettingsPage} />
+        <Route path="/admin/users" component={AdminUsersPage} />
+        <Route path="/admin/logs" component={AdminLogsPage} />
+        <Route path="/admin/resources" component={AdminResourcesPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

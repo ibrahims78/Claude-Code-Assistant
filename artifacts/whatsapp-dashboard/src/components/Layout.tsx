@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { path: "/", icon: "📊", label: "لوحة التحكم" },
   { path: "/sessions", icon: "📱", label: "الجلسات" },
+  { path: "/send", icon: "✉️", label: "إرسال رسالة" },
   { path: "/messages", icon: "💬", label: "الرسائل" },
   { path: "/api-keys", icon: "🔑", label: "مفاتيح API" },
   { path: "/users", icon: "👥", label: "المستخدمون", adminOnly: true },

@@ -8,6 +8,8 @@ import LoginPage from "@/pages/LoginPage";
 import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import DashboardPage from "@/pages/DashboardPage";
 import SessionsPage from "@/pages/SessionsPage";
+import SessionDetailPage from "@/pages/SessionDetailPage";
+import SendPage from "@/pages/SendPage";
 import MessagesPage from "@/pages/MessagesPage";
 import ApiKeysPage from "@/pages/ApiKeysPage";
 import UsersPage from "@/pages/UsersPage";
@@ -36,6 +38,8 @@ function AppRoutes() {
       <Switch>
         <Route path="/" component={DashboardPage} />
         <Route path="/sessions" component={SessionsPage} />
+        <Route path="/sessions/:id" component={SessionDetailPage} />
+        <Route path="/send" component={SendPage} />
         <Route path="/messages" component={MessagesPage} />
         <Route path="/api-keys" component={ApiKeysPage} />
         <Route path="/users" component={UsersPage} />

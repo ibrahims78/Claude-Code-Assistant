@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { io } from "socket.io-client";
@@ -55,6 +56,7 @@ function QrModal({ qr, sessionId, onClose }: QrModalProps) {
 
 export default function SessionsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [qrData, setQrData] = useState<{ sessionId: string; qr: string } | null>(null);
@@ -215,6 +217,12 @@ export default function SessionsPage() {
               </div>
 
               <div className="flex gap-2">
+                <button
+                  onClick={() => setLocation(`/sessions/${session.id}`)}
+                  className="px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-xs font-medium transition-all"
+                >
+                  تفاصيل
+                </button>
                 {session.status === "connected" ? (
                   <button onClick={() => handleDisconnect(session.id)}
                     className="flex-1 py-2 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 text-xs font-medium transition-all">

@@ -70,6 +70,44 @@ pnpm --filter @workspace/api-server run dev  # Run API server
 - `mustChangePassword` field forces password change on first login
 - Admin role required for `/admin/*` routes
 
+## API Routes (Complete)
+
+### Sessions: `/api/sessions`
+- GET, POST, GET /:id, PATCH /:id, DELETE /:id
+- POST /:id/connect, /:id/disconnect, /:id/restart
+- GET /:id/messages, /:id/qr (Socket.IO delivers QR)
+- PATCH /:id/webhook, /:id/features
+- POST /:id/send/text|image|video|audio|file|location|sticker
+
+### Send: `/api/send`
+- POST /text|image|video|audio|file|location|sticker
+
+### Admin: `/api/admin`
+- GET /dashboard, /settings, PUT /settings
+- POST /import, /resources/import-url
+- GET /resources, POST /resources, PUT /resources/:id
+- PUT /resources/:id/toggle-visibility|toggle-featured
+- DELETE /resources/:id
+- GET /resources/suggestions, PUT /resources/suggestions/:id
+- GET /telegram/users|stats, PUT /telegram/users/:id/block
+- GET /audit-logs
+- GET /content, PUT /content/:id, DELETE /content/:id
+
+### Resources: `/api/resources`
+- GET /, GET /:id, POST /:id/translate, GET /:id/ask-context, POST /suggest
+
+## Frontend Pages
+
+### whatsapp-dashboard (`/whatsapp`)
+- `/` Dashboard, `/sessions` Sessions list, `/sessions/:id` Session detail (5 tabs)
+- `/send` Send messages (text/image/video/audio/file/location/sticker)
+- `/messages`, `/api-keys`, `/users`, `/audit`, `/settings`
+
+### claude-education (`/education`)
+- `/` Home, `/chat` RAG Chat, `/learn` Curriculum, `/learn/:id` Section
+- `/profile`, `/resources`, `/admin` Admin dashboard
+- `/admin/settings`, `/admin/users`, `/admin/logs`, `/admin/resources`
+
 ## RAG Chat Pipeline
 
 1. User sends message → `/api/chat/conversations/:id/messages`

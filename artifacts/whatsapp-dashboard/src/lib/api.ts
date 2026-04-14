@@ -1,10 +1,17 @@
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function getApiBase() {
+export function getApiBase() {
   if (import.meta.env.PROD) return "/api";
   const devDomain = (import.meta as any).env.VITE_API_URL;
   if (devDomain) return devDomain + "/api";
   return "/api";
+}
+
+export function getSocketBase() {
+  if (import.meta.env.PROD) return "";
+  const devDomain = (import.meta as any).env.VITE_API_URL;
+  if (devDomain) return devDomain;
+  return "";
 }
 
 const API_BASE = getApiBase();

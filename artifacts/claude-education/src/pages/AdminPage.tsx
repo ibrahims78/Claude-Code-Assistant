@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, ExternalLink } from "lucide-react";
+import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, Shield, Link2 } from "lucide-react";
 
 interface AdminStats {
   totalUsers: number;
@@ -143,6 +143,42 @@ export default function AdminPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Link href="/admin/users">
+          <Card className="border-border bg-card hover:border-primary/40 cursor-pointer transition-all">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Users size={18} className="text-green-400" />
+              <div>
+                <p className="text-sm font-medium text-foreground">إدارة المستخدمين</p>
+                <p className="text-xs text-muted-foreground">عرض وتعديل الأدوار</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/logs">
+          <Card className="border-border bg-card hover:border-primary/40 cursor-pointer transition-all">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Shield size={18} className="text-yellow-400" />
+              <div>
+                <p className="text-sm font-medium text-foreground">سجلات النظام</p>
+                <p className="text-xs text-muted-foreground">مراقبة الأنشطة والأحداث</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/resources">
+          <Card className="border-border bg-card hover:border-primary/40 cursor-pointer transition-all col-span-2">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Link2 size={18} className="text-orange-400" />
+              <div>
+                <p className="text-sm font-medium text-foreground">إدارة المصادر</p>
+                <p className="text-xs text-muted-foreground">استيراد وتنظيم المصادر التعليمية</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );
