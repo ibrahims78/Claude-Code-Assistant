@@ -37,8 +37,8 @@ Unified bilingual (Arabic/English) platform combining:
 
 ## Seed Data
 
-- Admin: `admin / admin123` (must change password on first login)
-- Employees: `emp1 / pass123`, `emp2 / pass123`, `emp3 / pass123`
+- Admin: `admin / 123456` (must change password on first login)
+- Employees: `employee1 / Employee@123`, `employee2 / Employee@123`, `employee3 / Employee@123`
 - 3 WhatsApp sessions, 10 content chunks, 6 resources, 9 settings, 20 audit logs
 
 ## Key Commands
