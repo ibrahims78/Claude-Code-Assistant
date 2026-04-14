@@ -96,9 +96,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   (req as Request & { user: User }).user = user;
 
   // Check mustChangePassword
+  // req.path is the LOCAL path after router prefix stripping:
+  //   /api/auth/me       → req.path = "/me"
+  //   /api/auth/login    → req.path = "/login"
+  //   /api/users/me/password → req.path = "/me/password"
   if (user.mustChangePassword) {
-    const allowedPaths = ["/auth/login", "/auth/logout", "/auth/me", "/users/me/password", "/me/password"];
-    const isAllowed = allowedPaths.some(p => req.path === p || req.path.endsWith(p));
+    const allowedPaths = ["/login", "/logout", "/me", "/me/password"];
+    const isAllowed = allowedPaths.some(p => req.path === p);
     if (!isAllowed) {
       res.status(403).json({ error: "Password change required", mustChangePassword: true });
       return;

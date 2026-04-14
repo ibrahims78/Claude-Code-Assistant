@@ -74,8 +74,8 @@ export default function RegisterPage() {
               </Button>
             </form>
             <p className="text-center text-sm text-muted-foreground mt-4">
-              <Link href="/login">
-                <a className="text-primary hover:underline">{t("login")}</a>
+              <Link href="/login" className="text-primary hover:underline">
+                {t("login")}
               </Link>
             </p>
           </CardContent>
