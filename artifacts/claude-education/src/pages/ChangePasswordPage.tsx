@@ -7,19 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import { Shield, Check, X } from "lucide-react";
 
-function passwordStrength(p: string) {
-  let score = 0;
-  if (p.length >= 6) score++;
-  if (p.length >= 10) score++;
-  if (/[A-Z]/.test(p)) score++;
-  if (/[a-z]/.test(p)) score++;
-  if (/[0-9!@#$%^&*]/.test(p)) score++;
-  return score;
+interface Requirement {
+  label: string;
+  test: (p: string) => boolean;
 }
+
+const requirements: Requirement[] = [
+  { label: "6 أحرف على الأقل", test: (p) => p.length >= 6 },
+  { label: "حرف كبير (A-Z)", test: (p) => /[A-Z]/.test(p) },
+  { label: "حرف صغير (a-z)", test: (p) => /[a-z]/.test(p) },
+  { label: "رقم أو رمز (!@#...)", test: (p) => /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+];
 
 export default function ChangePasswordPage() {
   const { user, setUser, logout } = useAuth();
@@ -28,10 +29,13 @@ export default function ChangePasswordPage() {
   const [form, setForm] = useState({ currentPassword: "", newPassword: "" });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const strength = passwordStrength(form.newPassword);
+
+  const passed = requirements.map((r) => r.test(form.newPassword));
+  const allPassed = passed.every(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!allPassed) return;
     setLoading(true);
     try {
       await api.patch("/users/me/password", { currentPassword: form.currentPassword, newPassword: form.newPassword });
@@ -44,9 +48,6 @@ export default function ChangePasswordPage() {
       setLoading(false);
     }
   };
-
-  const strengthColor = ["bg-destructive", "bg-destructive", "bg-warning", "bg-warning", "bg-green-500", "bg-green-500"][strength];
-  const strengthLabel = ["", "ضعيف", "ضعيف", "متوسط", "قوي", "قوي"][strength];
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -63,23 +64,54 @@ export default function ChangePasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label>{t("currentPassword")}</Label>
-                <Input type="password" value={form.currentPassword} onChange={e => setForm(f => ({ ...f, currentPassword: e.target.value }))} disabled={loading} />
+                <Input
+                  type="password"
+                  value={form.currentPassword}
+                  onChange={(e) => setForm((f) => ({ ...f, currentPassword: e.target.value }))}
+                  disabled={loading}
+                  placeholder="••••••••"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>{t("newPassword")}</Label>
-                <Input type="password" value={form.newPassword} onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))} disabled={loading} />
-                {form.newPassword && (
-                  <div className="space-y-1">
-                    <Progress value={(strength / 5) * 100} className={`h-1.5 ${strengthColor}`} />
-                    <p className="text-xs text-muted-foreground">{strengthLabel}</p>
+                <Input
+                  type="password"
+                  value={form.newPassword}
+                  onChange={(e) => setForm((f) => ({ ...f, newPassword: e.target.value }))}
+                  disabled={loading}
+                  placeholder="••••••••"
+                />
+                {form.newPassword.length > 0 && (
+                  <div className="mt-2 space-y-1 rounded-md border border-border bg-muted/30 p-3">
+                    {requirements.map((req, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {passed[i] ? (
+                          <Check size={13} className="text-green-500 shrink-0" />
+                        ) : (
+                          <X size={13} className="text-destructive shrink-0" />
+                        )}
+                        <span className={passed[i] ? "text-green-500" : "text-muted-foreground"}>
+                          {req.label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-              <Button type="submit" className="w-full bg-gradient-to-r from-primary to-blue-500" disabled={loading || !form.currentPassword || form.newPassword.length < 6}>
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-primary to-blue-500"
+                disabled={loading || !form.currentPassword || !allPassed}
+              >
                 {loading ? t("loading") : t("updatePassword")}
               </Button>
             </form>
-            <Button variant="ghost" size="sm" className="w-full mt-3 text-muted-foreground" onClick={() => logout()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-3 text-muted-foreground"
+              onClick={() => logout()}
+            >
               {t("logout")}
             </Button>
           </CardContent>

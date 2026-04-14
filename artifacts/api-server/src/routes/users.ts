@@ -50,6 +50,43 @@ router.post("/", requireAuth, requireAdmin, async (req: Request, res: Response):
   res.status(201).json(safeUser(newUser));
 });
 
+// PATCH /api/users/me/password — MUST come before /:id
+router.patch("/me/password", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as Request & { user: User }).user;
+  const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+  
+  if (!verifyPassword(currentPassword, user.passwordHash)) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  
+  const complexityError = validatePasswordComplexity(newPassword);
+  if (complexityError) {
+    res.status(400).json({ error: complexityError });
+    return;
+  }
+  
+  await db.update(usersTable).set({
+    passwordHash: hashPassword(newPassword),
+    mustChangePassword: false,
+    updatedAt: new Date(),
+  }).where(eq(usersTable.id, user.id));
+  
+  res.json({ success: true });
+});
+
+// PATCH /api/users/me — own data — MUST come before /:id
+router.patch("/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const user = (req as Request & { user: User }).user;
+  const { email } = req.body as { email?: string };
+  
+  const [updated] = await db.update(usersTable)
+    .set({ email, updatedAt: new Date() })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  res.json(safeUser(updated));
+});
+
 // GET /api/users/:id
 router.get("/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const currentUser = (req as Request & { user: User }).user;
@@ -95,43 +132,6 @@ router.patch("/:id", requireAuth, requireAdmin, async (req: Request, res: Respon
 router.delete("/:id", requireAuth, requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   await db.delete(usersTable).where(eq(usersTable.id, id));
-  res.json({ success: true });
-});
-
-// PATCH /api/users/me — own data
-router.patch("/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const user = (req as Request & { user: User }).user;
-  const { email } = req.body as { email?: string };
-  
-  const [updated] = await db.update(usersTable)
-    .set({ email, updatedAt: new Date() })
-    .where(eq(usersTable.id, user.id))
-    .returning();
-  res.json(safeUser(updated));
-});
-
-// PATCH /api/users/me/password
-router.patch("/me/password", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const user = (req as Request & { user: User }).user;
-  const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
-  
-  if (!verifyPassword(currentPassword, user.passwordHash)) {
-    res.status(401).json({ error: "Current password is incorrect" });
-    return;
-  }
-  
-  const complexityError = validatePasswordComplexity(newPassword);
-  if (complexityError) {
-    res.status(400).json({ error: complexityError });
-    return;
-  }
-  
-  await db.update(usersTable).set({
-    passwordHash: hashPassword(newPassword),
-    mustChangePassword: false,
-    updatedAt: new Date(),
-  }).where(eq(usersTable.id, user.id));
-  
   res.json({ success: true });
 });
 
