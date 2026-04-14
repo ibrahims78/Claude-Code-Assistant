@@ -2,37 +2,79 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import Layout from "@/components/Layout";
+import HomePage from "@/pages/HomePage";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
+import ChangePasswordPage from "@/pages/ChangePasswordPage";
+import ChatPage from "@/pages/ChatPage";
+import LearnPage from "@/pages/LearnPage";
+import SectionPage from "@/pages/SectionPage";
+import ProfilePage from "@/pages/ProfilePage";
+import ResourcesPage from "@/pages/ResourcesPage";
+import AdminPage from "@/pages/AdminPage";
+import AdminSettingsPage from "@/pages/AdminSettingsPage";
 import NotFound from "@/pages/not-found";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000 },
+  },
+});
 
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
+function AppRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <div className="animate-spin w-10 h-10 border-2 border-primary border-t-transparent rounded-full" />
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function Router() {
+  if (!user) {
+    return (
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route component={LoginPage} />
+      </Switch>
+    );
+  }
+
+  if (user.mustChangePassword) {
+    return <ChangePasswordPage />;
+  }
+
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route component={NotFound} />
-    </Switch>
+    <Layout>
+      <Switch>
+        <Route path="/" component={HomePage} />
+        <Route path="/chat" component={ChatPage} />
+        <Route path="/learn" component={LearnPage} />
+        <Route path="/learn/:sectionId" component={SectionPage} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route path="/resources" component={ResourcesPage} />
+        <Route path="/admin" component={AdminPage} />
+        <Route path="/admin/settings" component={AdminSettingsPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </Layout>
   );
 }
 
 function App() {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <AuthProvider>
+          <WouterRouter base={basePath}>
+            <AppRoutes />
+          </WouterRouter>
+        </AuthProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

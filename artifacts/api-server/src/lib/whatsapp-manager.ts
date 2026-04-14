@@ -116,7 +116,9 @@ export async function createWppSession(sessionId: string, io: SocketServer): Pro
     cleanChromeLocks(sessionId);
     
     const CHROME_PATH = resolveChromePath();
-    const { create } = await import("@wppconnect-team/wppconnect");
+    const wppMod = await import("@wppconnect-team/wppconnect");
+    const create = (wppMod as any).create ?? (wppMod as any).default?.create;
+    if (typeof create !== "function") throw new Error("wppconnect create not loaded");
     
     const client = await create({
       session: sessionId,

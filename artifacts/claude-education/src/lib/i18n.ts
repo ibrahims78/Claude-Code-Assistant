@@ -1,0 +1,248 @@
+import { useState, useEffect } from "react";
+
+type Lang = "ar" | "en";
+
+const translations = {
+  ar: {
+    appName: "تعلّم Claude Code",
+    appTagline: "منصة تعليمية للمطورين العرب",
+    home: "الرئيسية",
+    chat: "المساعد الذكي",
+    learn: "التعلّم",
+    resources: "المصادر",
+    profile: "الملف الشخصي",
+    admin: "الإدارة",
+    login: "تسجيل الدخول",
+    register: "إنشاء حساب",
+    logout: "تسجيل الخروج",
+    username: "اسم المستخدم",
+    password: "كلمة المرور",
+    email: "البريد الإلكتروني",
+    confirmPassword: "تأكيد كلمة المرور",
+    loginBtn: "دخول",
+    registerBtn: "إنشاء الحساب",
+    loading: "جاري التحميل...",
+    error: "خطأ",
+    success: "تم بنجاح",
+    save: "حفظ",
+    cancel: "إلغاء",
+    delete: "حذف",
+    edit: "تعديل",
+    create: "إنشاء",
+    search: "بحث...",
+    newConversation: "محادثة جديدة",
+    sendMessage: "إرسال",
+    typeMessage: "اكتب رسالتك هنا...",
+    thinking: "يفكر...",
+    sources: "المصادر",
+    markAsRead: "تم القراءة",
+    progressPercent: "التقدم",
+    allTypes: "الكل",
+    official: "رسمي",
+    research: "بحثي",
+    article: "مقالة",
+    tool: "أداة",
+    video: "فيديو",
+    featured: "مميز",
+    viewResource: "عرض",
+    translate: "ترجمة",
+    suggestResource: "اقتراح مصدر",
+    urlPlaceholder: "https://...",
+    titlePlaceholder: "عنوان المصدر",
+    descPlaceholder: "وصف قصير",
+    suggest: "اقتراح",
+    todayUsage: "استخدام اليوم",
+    totalConversations: "المحادثات",
+    totalQuestions: "الأسئلة",
+    changePassword: "تغيير كلمة المرور",
+    currentPassword: "كلمة المرور الحالية",
+    newPassword: "كلمة المرور الجديدة",
+    updatePassword: "تحديث كلمة المرور",
+    adminDashboard: "لوحة الإدارة",
+    totalUsers: "المستخدمون",
+    totalChunks: "المحتوى",
+    lastImport: "آخر استيراد",
+    importContent: "استيراد المحتوى",
+    importing: "جاري الاستيراد...",
+    settings: "الإعدادات",
+    appSettings: "إعدادات التطبيق",
+    telegramBot: "بوت تيليغرام",
+    n8nIntegration: "تكامل n8n",
+    downloadWorkflow: "تحميل Workflow",
+    botEnabled: "البوت نشط",
+    botToken: "توكن البوت",
+    saveActivate: "حفظ وتفعيل",
+    welcomeAr: "رسالة الترحيب (عربي)",
+    welcomeEn: "رسالة الترحيب (إنجليزي)",
+    dailyLimit: "الحد اليومي",
+    heroTitle: "تعلّم Claude Code بالعربية",
+    heroSubtitle: "أول منصة تعليمية متخصصة في Claude Code للمطورين العرب — مع مساعد ذكاء اصطناعي تفاعلي",
+    startLearning: "ابدأ التعلّم",
+    aiChat: "مساعد ذكي",
+    aiChatDesc: "اسأل أي سؤال عن Claude Code وستحصل على إجابة فورية مدعومة بالذكاء الاصطناعي",
+    learningPaths: "مسارات تعليمية",
+    learningPathsDesc: "محتوى منظم من المستوى المبتدئ إلى المتقدم",
+    resourcesDesc: "مكتبة شاملة من المصادر الرسمية والأبحاث والمقالات",
+    beginner: "مبتدئ",
+    intermediate: "متوسط",
+    advanced: "متقدم",
+    back: "رجوع",
+    noConversations: "لا توجد محادثات بعد",
+    startNewChat: "ابدأ محادثة جديدة",
+    deleteConversation: "حذف المحادثة",
+    confirmDelete: "هل أنت متأكد من الحذف؟",
+    yes: "نعم",
+    no: "لا",
+    arabicOnly: "العربية فقط",
+    englishOnly: "الإنجليزية فقط",
+    allLanguages: "الكل",
+    viewTelegramUsers: "عرض مستخدمو تيليغرام",
+    manageResources: "إدارة المصادر",
+    manageUsers: "إدارة المستخدمين",
+    notFound: "الصفحة غير موجودة",
+    goHome: "الصفحة الرئيسية",
+    passwordChanged: "تم تغيير كلمة المرور بنجاح",
+    mustChangePassword: "يجب تغيير كلمة المرور قبل المتابعة",
+  },
+  en: {
+    appName: "Learn Claude Code",
+    appTagline: "Educational platform for Arab developers",
+    home: "Home",
+    chat: "AI Assistant",
+    learn: "Learn",
+    resources: "Resources",
+    profile: "Profile",
+    admin: "Admin",
+    login: "Login",
+    register: "Register",
+    logout: "Logout",
+    username: "Username",
+    password: "Password",
+    email: "Email",
+    confirmPassword: "Confirm Password",
+    loginBtn: "Sign In",
+    registerBtn: "Create Account",
+    loading: "Loading...",
+    error: "Error",
+    success: "Success",
+    save: "Save",
+    cancel: "Cancel",
+    delete: "Delete",
+    edit: "Edit",
+    create: "Create",
+    search: "Search...",
+    newConversation: "New Conversation",
+    sendMessage: "Send",
+    typeMessage: "Type your message here...",
+    thinking: "Thinking...",
+    sources: "Sources",
+    markAsRead: "Mark as Read",
+    progressPercent: "Progress",
+    allTypes: "All",
+    official: "Official",
+    research: "Research",
+    article: "Article",
+    tool: "Tool",
+    video: "Video",
+    featured: "Featured",
+    viewResource: "View",
+    translate: "Translate",
+    suggestResource: "Suggest Resource",
+    urlPlaceholder: "https://...",
+    titlePlaceholder: "Resource title",
+    descPlaceholder: "Short description",
+    suggest: "Suggest",
+    todayUsage: "Today's Usage",
+    totalConversations: "Conversations",
+    totalQuestions: "Questions",
+    changePassword: "Change Password",
+    currentPassword: "Current Password",
+    newPassword: "New Password",
+    updatePassword: "Update Password",
+    adminDashboard: "Admin Dashboard",
+    totalUsers: "Users",
+    totalChunks: "Content",
+    lastImport: "Last Import",
+    importContent: "Import Content",
+    importing: "Importing...",
+    settings: "Settings",
+    appSettings: "App Settings",
+    telegramBot: "Telegram Bot",
+    n8nIntegration: "n8n Integration",
+    downloadWorkflow: "Download Workflow",
+    botEnabled: "Bot Active",
+    botToken: "Bot Token",
+    saveActivate: "Save & Activate",
+    welcomeAr: "Welcome message (Arabic)",
+    welcomeEn: "Welcome message (English)",
+    dailyLimit: "Daily Limit",
+    heroTitle: "Learn Claude Code in Arabic",
+    heroSubtitle: "The first educational platform dedicated to Claude Code for Arab developers — with an interactive AI assistant",
+    startLearning: "Start Learning",
+    aiChat: "AI Chat",
+    aiChatDesc: "Ask any question about Claude Code and get instant AI-powered answers",
+    learningPaths: "Learning Paths",
+    learningPathsDesc: "Structured content from beginner to advanced level",
+    resourcesDesc: "Comprehensive library of official resources, research, and articles",
+    beginner: "Beginner",
+    intermediate: "Intermediate",
+    advanced: "Advanced",
+    back: "Back",
+    noConversations: "No conversations yet",
+    startNewChat: "Start a new chat",
+    deleteConversation: "Delete Conversation",
+    confirmDelete: "Are you sure you want to delete?",
+    yes: "Yes",
+    no: "No",
+    arabicOnly: "Arabic",
+    englishOnly: "English",
+    allLanguages: "All",
+    viewTelegramUsers: "View Telegram Users",
+    manageResources: "Manage Resources",
+    manageUsers: "Manage Users",
+    notFound: "Page Not Found",
+    goHome: "Go Home",
+    passwordChanged: "Password changed successfully",
+    mustChangePassword: "You must change your password before continuing",
+  },
+};
+
+let globalLang: Lang = (localStorage.getItem("edu_lang") as Lang) || "ar";
+let listeners: Array<() => void> = [];
+
+export function getLang(): Lang {
+  return globalLang;
+}
+
+export function setLang(lang: Lang) {
+  globalLang = lang;
+  localStorage.setItem("edu_lang", lang);
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.documentElement.lang = lang;
+  listeners.forEach(fn => fn());
+}
+
+export function t(key: keyof typeof translations["ar"]): string {
+  return translations[globalLang][key] || key;
+}
+
+export function useLang() {
+  const [lang, setLangState] = useState<Lang>(getLang);
+
+  useEffect(() => {
+    const fn = () => setLangState(getLang());
+    listeners.push(fn);
+    return () => { listeners = listeners.filter(l => l !== fn); };
+  }, []);
+
+  const toggle = () => {
+    const next: Lang = lang === "ar" ? "en" : "ar";
+    setLang(next);
+    setLangState(next);
+  };
+
+  return { lang, toggle, t: (key: keyof typeof translations["ar"]) => translations[lang][key] || key };
+}
+
+// Initialize direction on load
+setLang(globalLang);

@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.54.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@wppconnect-team/wppconnect": "^1.36.2",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
@@ -24,6 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^9",
     "pino-http": "^10",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

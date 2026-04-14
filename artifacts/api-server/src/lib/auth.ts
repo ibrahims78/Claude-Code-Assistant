@@ -97,8 +97,8 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
   // Check mustChangePassword
   if (user.mustChangePassword) {
-    const allowedPaths = ["/auth/login", "/auth/logout", "/auth/me", "/users/me/password"];
-    const isAllowed = allowedPaths.some(p => req.path.endsWith(p));
+    const allowedPaths = ["/auth/login", "/auth/logout", "/auth/me", "/users/me/password", "/me/password"];
+    const isAllowed = allowedPaths.some(p => req.path === p || req.path.endsWith(p));
     if (!isAllowed) {
       res.status(403).json({ error: "Password change required", mustChangePassword: true });
       return;

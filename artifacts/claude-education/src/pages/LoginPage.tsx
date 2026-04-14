@@ -1,0 +1,91 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
+import { useLang } from "@/lib/i18n";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const { t, lang, toggle } = useLang();
+  const [, setLocation] = useLocation();
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.username || !form.password) return;
+    setLoading(true);
+    try {
+      const result = await login(form.username, form.password);
+      if (result.mustChangePassword) {
+        setLocation("/change-password");
+      } else {
+        setLocation("/chat");
+      }
+    } catch (err: any) {
+      toast({ title: t("error"), description: err.message || "Invalid credentials", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        <div className="flex justify-end mb-4">
+          <Button variant="ghost" size="sm" onClick={toggle} className="text-muted-foreground">
+            {lang === "ar" ? "English" : "عربي"}
+          </Button>
+        </div>
+        <Card className="border-border bg-card">
+          <CardHeader className="text-center pb-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center mx-auto mb-3">
+              <span className="text-white font-bold text-xl">CC</span>
+            </div>
+            <CardTitle className="text-xl">{t("appName")}</CardTitle>
+            <CardDescription>{t("appTagline")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>{t("username")}</Label>
+                <Input
+                  value={form.username}
+                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder={t("username")}
+                  autoComplete="username"
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("password")}</Label>
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder={t("password")}
+                  autoComplete="current-password"
+                  disabled={loading}
+                />
+              </div>
+              <Button type="submit" className="w-full bg-gradient-to-r from-primary to-blue-500 hover:opacity-90" disabled={loading}>
+                {loading ? t("loading") : t("loginBtn")}
+              </Button>
+            </form>
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              <Link href="/register" className="text-primary hover:underline">
+                {t("register")}
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
