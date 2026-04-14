@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { apiRateLimiter } from "./lib/rate-limit.js";
@@ -16,6 +17,7 @@ app.set("trust proxy", 1);
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false,
+  frameguard: false,
 }));
 
 // CORS — allow all Replit domains + localhost
@@ -64,6 +66,21 @@ app.use("/api/", apiRateLimiter);
 
 // All routes
 app.use("/api", router);
+
+// Proxy frontend apps (preserve full path since Vite base includes the prefix)
+app.use("/education", createProxyMiddleware({
+  target: "http://localhost:25013",
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: (path) => `/education${path}`,
+}));
+
+app.use("/whatsapp", createProxyMiddleware({
+  target: "http://localhost:23097",
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: (path) => `/whatsapp${path}`,
+}));
 
 // 404
 app.use((_req, res) => {
