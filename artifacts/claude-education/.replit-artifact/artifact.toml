@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/education/"
+title = "Claude Code تعلّم"
+version = "1.0.0"
+id = "artifacts/claude-education"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/education/" ]
+localPort = 25013
+
+[services.development]
+run = "pnpm --filter @workspace/claude-education run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/claude-education", "run", "build" ]
+publicDir = "artifacts/claude-education/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25013"
+BASE_PATH = "/education/"
