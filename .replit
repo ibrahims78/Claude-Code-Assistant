@@ -25,11 +25,11 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run start & PORT=25013 BASE_PATH=/education pnpm --filter @workspace/claude-education run dev & PORT=23097 BASE_PATH=/whatsapp pnpm --filter @workspace/whatsapp-dashboard run dev & wait"
+args = "PORT=8080 pnpm --filter @workspace/api-server run start"
 waitForPort = 8080
 
 [agent]
@@ -55,6 +55,10 @@ externalPort = 3000
 [[ports]]
 localPort = 25013
 externalPort = 3001
+
+[[ports]]
+localPort = 25014
+externalPort = 3003
 
 [nix]
 channel = "stable-25_05"
