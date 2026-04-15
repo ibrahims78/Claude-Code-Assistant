@@ -29,7 +29,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run start"
+args = "pnpm --filter @workspace/api-server run build && PORT=8080 pnpm --filter @workspace/api-server run start"
 waitForPort = 8080
 
 [agent]
