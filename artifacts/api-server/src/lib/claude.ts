@@ -2,21 +2,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSettingValue } from "./settings.js";
 import type { ContentChunk } from "@workspace/db";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+const anthropic = new Anthropic({
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || "",
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL || undefined,
+});
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // Simple deterministic embedding based on text hash for development
-  // In production this would use a proper embedding API
   const hash = Array.from(text).reduce((acc, char) => {
     return ((acc << 5) - acc) + char.charCodeAt(0);
   }, 0);
-  
+
   const embedding = new Array(1536).fill(0).map((_, i) => {
     const seed = hash * (i + 1) * 2654435761;
     return ((seed >>> 16) / 65535) * 2 - 1;
   });
-  
-  // Normalize
+
   const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
   return embedding.map(val => val / (magnitude || 1));
 }
@@ -26,22 +26,24 @@ export async function chatWithClaude(
   systemPrompt: string,
   model?: string
 ): Promise<{ content: string; tokensUsed: number }> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const hasKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!hasKey) {
     return {
-      content: "⚠️ ANTHROPIC_API_KEY غير مُكوَّن. يرجى إضافة مفتاح Anthropic API في إعدادات المشروع للحصول على ردود ذكاء اصطناعي.",
+      content: "⚠️ لم يتم إعداد مفتاح Anthropic API بعد. يرجى إعداد التكامل من إعدادات المشروع.",
       tokensUsed: 0,
     };
   }
-  
-  const aiModel = model || (await getSettingValue("ai_model")) || "claude-3-5-sonnet-20241022";
-  
+
+  const settingsModel = await getSettingValue("ai_model");
+  const aiModel = model || settingsModel || "claude-sonnet-4-6";
+
   const response = await anthropic.messages.create({
     model: aiModel,
     max_tokens: 2048,
     system: systemPrompt,
     messages,
   });
-  
+
   return {
     content: response.content[0].type === "text" ? response.content[0].text : "",
     tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
