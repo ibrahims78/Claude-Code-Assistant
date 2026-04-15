@@ -879,6 +879,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.2
         version: 3.0.3
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
     devDependencies:
       '@types/bcryptjs':
         specifier: ^2.4.6
