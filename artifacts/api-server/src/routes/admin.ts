@@ -4,10 +4,10 @@ import {
   contentChunksTable, resourcesTable, resourceSuggestionsTable,
   settingsTable, telegramUsersTable, auditLogsTable,
 } from "@workspace/db";
-import { eq, sql, count } from "drizzle-orm";
+import { eq, sql, count, and, ne, isNull, or } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth.js";
 import { getSettingValue, setSettingValue } from "../lib/settings.js";
-import { generateEmbedding } from "../lib/claude.js";
+import { generateEmbedding, chatWithClaude } from "../lib/claude.js";
 import { testAIKey } from "../lib/ai.js";
 import type { User } from "@workspace/db";
 
@@ -156,6 +156,85 @@ router.post("/import", async (req: Request, res: Response): Promise<void> => {
     res.json({ imported, updated, total: imported + updated });
   } catch (err) {
     res.status(500).json({ error: "Import failed", details: String(err) });
+  }
+});
+
+// POST /api/admin/translate — translate untranslated content chunks to Arabic
+router.post("/translate", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const batchSize = 5;
+    const limit = parseInt((req.query.limit as string) || "50");
+
+    const untranslated = await db.execute(
+      sql`SELECT id, title, content FROM content_chunks 
+          WHERE content_ar = content OR content_ar IS NULL 
+          ORDER BY order_index 
+          LIMIT ${limit}`
+    ) as { rows: Array<{ id: number; title: string; content: string }> };
+
+    if (untranslated.rows.length === 0) {
+      res.json({ translated: 0, message: "جميع المحتوى مترجم بالفعل" });
+      return;
+    }
+
+    let translated = 0;
+    let failed = 0;
+
+    for (let i = 0; i < untranslated.rows.length; i += batchSize) {
+      const batch = untranslated.rows.slice(i, i + batchSize);
+      const items = batch.map((c, idx) =>
+        `[${idx + 1}] العنوان: ${c.title}\nالمحتوى:\n${c.content.slice(0, 1500)}`
+      ).join("\n\n---\n\n");
+
+      try {
+        const { content: response } = await chatWithClaude(
+          [{
+            role: "user",
+            content: `ترجم النصوص التالية إلى العربية بشكل احترافي. لكل عنصر استخدم التنسيق:
+[رقم]
+العنوان: <ترجمة>
+المحتوى:
+<ترجمة المحتوى مع الحفاظ على Markdown>
+===
+
+النصوص:
+${items}`,
+          }],
+          "أنت مترجم محترف للمحتوى التقني إلى العربية. احتفظ بصياغة Markdown والأوامر البرمجية."
+        );
+
+        for (let j = 0; j < batch.length; j++) {
+          const pattern = new RegExp(
+            `\\[${j + 1}\\][\\s\\S]*?العنوان:\\s*(.+?)\\nالمحتوى:\\s*\\n([\\s\\S]*?)(?=\\[${j + 2}\\]|===|$)`,
+            "i"
+          );
+          const match = response.match(pattern);
+          if (match) {
+            await db.execute(
+              sql`UPDATE content_chunks SET title_ar=${match[1].trim()}, content_ar=${match[2].replace(/===\s*$/, "").trim()}, updated_at=NOW() WHERE id=${batch[j].id}`
+            );
+            translated++;
+          } else {
+            failed++;
+          }
+        }
+      } catch {
+        failed += batch.length;
+      }
+    }
+
+    const remaining = await db.execute(
+      sql`SELECT COUNT(*) as count FROM content_chunks WHERE content_ar = content OR content_ar IS NULL`
+    ) as { rows: Array<{ count: string }> };
+
+    res.json({
+      translated,
+      failed,
+      remaining: parseInt(remaining.rows[0].count),
+      message: `تمت ترجمة ${translated} قطعة`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Translation failed", details: String(err) });
   }
 });
 

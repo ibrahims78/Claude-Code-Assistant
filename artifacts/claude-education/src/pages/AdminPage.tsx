@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, Shield, Link2 } from "lucide-react";
+import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, Shield, Link2, Languages } from "lucide-react";
 
 interface AdminStats {
   totalUsers: number;
@@ -24,6 +24,10 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [importing, setImporting] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translateResult, setTranslateResult] = useState<{ translated: number; remaining: number } | null>(null);
+
+  interface TranslateResult { translated: number; remaining: number; message: string; }
 
   if (user?.role !== "admin") {
     return (
@@ -48,6 +52,21 @@ export default function AdminPage() {
       toast({ title: t("error"), description: err.message, variant: "destructive" });
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleTranslate = async () => {
+    setTranslating(true);
+    setTranslateResult(null);
+    try {
+      const result = await api.post("/admin/translate?limit=50") as TranslateResult;
+      setTranslateResult(result);
+      toast({ title: result.message || t("success") });
+      refetch();
+    } catch (err: any) {
+      toast({ title: t("error"), description: err.message, variant: "destructive" });
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -95,7 +114,7 @@ export default function AdminPage() {
 
       {/* Last Import */}
       <Card className="border-border bg-card">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">{t("lastImport")}</p>
@@ -112,6 +131,26 @@ export default function AdminPage() {
             >
               <RefreshCw size={14} className={importing ? "animate-spin" : ""} />
               {importing ? t("importing") : t("importContent")}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">ترجمة المحتوى إلى العربية</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {translateResult
+                  ? `مُترجم: ${translateResult.translated} • متبقي: ${translateResult.remaining}`
+                  : "ترجمة 50 قطعة لكل دفعة باستخدام Claude AI"}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+              onClick={handleTranslate}
+              disabled={translating}
+            >
+              <Languages size={14} className={translating ? "animate-pulse" : ""} />
+              {translating ? "يترجم..." : "ترجمة"}
             </Button>
           </div>
         </CardContent>

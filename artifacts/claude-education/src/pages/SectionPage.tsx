@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,40 @@ interface Chunk {
   category?: string;
   section?: string;
   isRead?: boolean;
+}
+
+function cleanContent(text: string): string {
+  return text
+    .replace(/<picture[\s\S]*?<\/picture>/gi, "")
+    .replace(/<source[^>]*>/gi, "")
+    .replace(/<img[^>]*>/gi, "")
+    .replace(/!\[.*?\]\(resources\/.*?\)/g, "")
+    .replace(/^\s*\n+/, "")
+    .trim();
+}
+
+function MarkdownContent({ content, isArabic }: { content: string; isArabic: boolean }) {
+  return (
+    <div
+      className={cn(
+        "prose prose-sm prose-invert max-w-none",
+        "prose-headings:text-foreground prose-headings:font-semibold",
+        "prose-p:text-muted-foreground prose-p:leading-relaxed",
+        "prose-strong:text-foreground",
+        "prose-code:text-purple-300 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs",
+        "prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:text-xs",
+        "prose-table:text-xs prose-th:text-foreground prose-th:bg-muted/50 prose-td:text-muted-foreground",
+        "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+        "prose-li:text-muted-foreground prose-li:leading-relaxed",
+        "prose-blockquote:border-primary/40 prose-blockquote:text-muted-foreground",
+        isArabic ? "text-right" : "text-left"
+      )}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 export default function SectionPage() {
@@ -48,15 +84,24 @@ export default function SectionPage() {
     },
   });
 
+  const isArabic = lang === "ar";
+
+  const getTitle = (chunk: Chunk) => isArabic ? (chunk.titleAr || chunk.title) : chunk.title;
+  const getContent = (chunk: Chunk) => {
+    const raw = isArabic ? (chunk.contentAr || chunk.content) : chunk.content;
+    return cleanContent(raw);
+  };
+
   const filtered = chunks.filter(c => {
     if (!search) return true;
-    const title = lang === "ar" ? (c.titleAr || c.title) : c.title;
-    const content = lang === "ar" ? (c.contentAr || c.content) : c.content;
     const q = search.toLowerCase();
-    return title.toLowerCase().includes(q) || content.toLowerCase().includes(q);
+    return getTitle(c).toLowerCase().includes(q) || getContent(c).toLowerCase().includes(q);
   });
 
-  const BackIcon = lang === "ar" ? ArrowRight : ArrowLeft;
+  const BackIcon = isArabic ? ArrowRight : ArrowLeft;
+
+  const sectionLabel = sectionId.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  const readCount = chunks.filter(c => c.isRead).length;
 
   if (isLoading) {
     return (
@@ -74,9 +119,9 @@ export default function SectionPage() {
       </Button>
 
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-foreground capitalize">{sectionId.replace(/-/g, " ")}</h1>
+        <h1 className="text-xl font-bold text-foreground">{sectionLabel}</h1>
         <Badge variant="outline" className="border-border text-muted-foreground">
-          {chunks.filter(c => c.isRead).length}/{chunks.length}
+          {readCount}/{chunks.length}
         </Badge>
       </div>
 
@@ -90,11 +135,17 @@ export default function SectionPage() {
         />
       </div>
 
+      {filtered.length === 0 && (
+        <p className="text-center text-muted-foreground text-sm py-8">
+          {isArabic ? "لا توجد نتائج" : "No results found"}
+        </p>
+      )}
+
       <div className="space-y-3">
         {filtered.map(chunk => {
           const isExpanded = expanded.has(chunk.id);
-          const title = lang === "ar" ? (chunk.titleAr || chunk.title) : chunk.title;
-          const content = lang === "ar" ? (chunk.contentAr || chunk.content) : chunk.content;
+          const title = getTitle(chunk);
+          const content = getContent(chunk);
 
           return (
             <Card
@@ -105,7 +156,7 @@ export default function SectionPage() {
               )}
             >
               <CardHeader
-                className="p-4 pb-3 cursor-pointer"
+                className="p-4 pb-3 cursor-pointer select-none"
                 onClick={() => setExpanded(prev => {
                   const next = new Set(prev);
                   next.has(chunk.id) ? next.delete(chunk.id) : next.add(chunk.id);
@@ -126,19 +177,21 @@ export default function SectionPage() {
                       </Badge>
                     )}
                   </div>
-                  {isExpanded ? <ChevronUp size={15} className="text-muted-foreground shrink-0 mt-0.5" /> : <ChevronDown size={15} className="text-muted-foreground shrink-0 mt-0.5" />}
+                  {isExpanded
+                    ? <ChevronUp size={15} className="text-muted-foreground shrink-0 mt-0.5" />
+                    : <ChevronDown size={15} className="text-muted-foreground shrink-0 mt-0.5" />}
                 </div>
               </CardHeader>
 
               {isExpanded && (
                 <CardContent className="px-4 pb-4 pt-0">
-                  <div className="border-t border-border pt-3 mt-0">
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-4">{content}</p>
+                  <div className="border-t border-border pt-3">
+                    <MarkdownContent content={content} isArabic={isArabic} />
                     {!chunk.isRead && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="gap-2 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50"
+                        className="gap-2 mt-4 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50"
                         onClick={() => markRead.mutate(chunk.id)}
                         disabled={markRead.isPending}
                       >

@@ -7,12 +7,14 @@
     "hello": "tsx ./src/hello.ts",
     "seed": "tsx ./src/seed.ts",
     "import-content": "tsx ./src/import-content.ts",
+    "translate-content": "tsx ./src/translate-content.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
     "bcryptjs": "^3.0.2",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@anthropic-ai/sdk": "^0.54.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
