@@ -7,7 +7,8 @@ import {
 import { eq, sql, count } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth.js";
 import { getSettingValue, setSettingValue } from "../lib/settings.js";
-import { generateEmbedding, chatWithClaude } from "../lib/claude.js";
+import { generateEmbedding } from "../lib/claude.js";
+import { testAIKey } from "../lib/ai.js";
 import type { User } from "@workspace/db";
 
 const router = Router();
@@ -50,13 +51,32 @@ router.get("/settings", async (_req: Request, res: Response): Promise<void> => {
   res.json(result);
 });
 
-// PUT /api/admin/settings
+// PUT /api/admin/settings — bulk update { key: value, ... }
 router.put("/settings", async (req: Request, res: Response): Promise<void> => {
   const updates = req.body as Record<string, string>;
   for (const [key, value] of Object.entries(updates)) {
     await setSettingValue(key, value);
   }
   res.json({ success: true });
+});
+
+// PATCH /api/admin/settings — single update { key, value }
+router.patch("/settings", async (req: Request, res: Response): Promise<void> => {
+  const { key, value } = req.body as { key: string; value: string };
+  if (!key) { res.status(400).json({ error: "key is required" }); return; }
+  await setSettingValue(key, value ?? "");
+  res.json({ success: true });
+});
+
+// POST /api/admin/settings/test-ai — validate API key for a provider
+router.post("/settings/test-ai", async (req: Request, res: Response): Promise<void> => {
+  const { provider, apiKey } = req.body as { provider: string; apiKey: string };
+  if (!provider || !apiKey) {
+    res.status(400).json({ ok: false, error: "provider and apiKey are required" });
+    return;
+  }
+  const result = await testAIKey(provider, apiKey);
+  res.json(result);
 });
 
 // POST /api/admin/import — import content from GitHub

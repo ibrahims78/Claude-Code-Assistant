@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import { db, conversationsTable, chatMessagesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
-import { chatWithClaude, buildSystemPrompt } from "../lib/claude.js";
+import { chatWithAI } from "../lib/ai.js";
+import { buildSystemPrompt } from "../lib/claude.js";
 import { searchSimilarChunks } from "../lib/rag.js";
 import { writeAuditLog } from "../lib/audit.js";
 import type { User } from "@workspace/db";
@@ -101,7 +102,7 @@ router.post("/conversations/:id/messages", requireAuth, async (req: Request, res
     content: m.content,
   }));
   
-  const { content: reply, tokensUsed } = await chatWithClaude(
+  const { content: reply, tokensUsed } = await chatWithAI(
     [...historyMessages, { role: "user", content }],
     systemPrompt
   );
