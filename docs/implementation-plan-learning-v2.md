@@ -347,10 +347,45 @@ response: {
 
 ---
 
-### المرحلة 3: الذكاء الاصطناعي
-7. بناء `LearnAiDrawer.tsx`
-8. ربطه بـ `ask-about-chunk` endpoint
-9. إضافة رسالة المساعد الترحيبية في LearnPage
+### ✅ المرحلة 3: الذكاء الاصطناعي — مكتملة
+**تاريخ الإتمام:** 2026-04-17
+
+**المنجز:**
+1. ✅ إنشاء `artifacts/claude-education/src/components/LearnAiDrawer.tsx` — مكوّن Drawer المساعد الذكي الكامل:
+   - **الزر العائم:** زر ثابت في الزاوية السفلية اليمنى `💬 اسأل المساعد` بتصميم بنفسجي مع glow، يعمل على الـ Desktop والموبايل
+   - **Sheet من اليمين:** ينزلق بانيميشن سلس (400px عرض)، يُغلق من الـ X أو بالنقر خارجه
+   - **Header ذكي:** يعرض اسم المساعد + اسم القطعة الحالية كـ context + badge للـ section والـ chunk ID
+   - **شاشة الترحيب:** رسالة ترحيبية مع تحذير مناسب إذا لم يتم فتح قطعة بعد
+   - **Chips الاقتراحات السريعة:** 4 اقتراحات جاهزة (عربية/إنجليزية) تُرسل مباشرة بضغطة واحدة: "اشرح بمثال" / "ما التطبيق العملي؟" / "لخّص ما قرأته" / "ما الفرق الأساسي؟"
+   - **سجل المحادثة:** فقاعات رسائل مميّزة للمستخدم (بنفسجي يمين) والمساعد (رمادي يسار) مع loading spinner
+   - **روابط المصادر:** كل رد يُظهر القطع ذات الصلة كـ badge chips قابلة للنقر تقود مباشرة للقسم
+   - **مسح المحادثة:** زر RotateCcw لمسح كل الرسائل وبدء من جديد
+   - **Enter للإرسال:** `Shift+Enter` لسطر جديد، `Enter` وحده للإرسال
+   - **Scroll تلقائي:** يتمرر للأسفل عند كل رد جديد
+   - **إعادة ضبط عند تغيير القطعة:** المحادثة تُصفّى تلقائياً عند الانتقال لقطعة مختلفة
+
+2. ✅ ربط الـ Drawer بـ `POST /api/learn/ask-about-chunk`:
+   - يُرسل `{ chunkId, question, lang }` — يدعم العربية والإنجليزية تلقائياً حسب اللغة المحددة
+   - يعرض `answer` في فقاعة المساعد
+   - يعرض `relatedChunks` كروابط مصادر
+   - يتعامل مع أخطاء الشبكة بعرض رسالة واضحة في الـ chat
+   - يتعامل بشكل احترافي مع غياب مفتاح Anthropic API (يعرض رسالة توجيهية)
+
+3. ✅ دمج `LearnAiDrawer` في `artifacts/claude-education/src/pages/SectionPage.tsx`:
+   - يستقبل تلقائياً `chunkId` و`sectionId` و`chunkTitle` من الـ active chunk الحالي
+   - يتحدث تلقائياً مع كل تغيير في القطعة المفتوحة
+
+4. ✅ رسالة المساعد الترحيبية في `LearnPage.tsx` (منجزة في المرحلة 2 عبر `POST /api/learn/suggest-next`)
+
+**نتائج الاختبار:**
+- ✅ `POST /api/learn/ask-about-chunk` مع بيانات صحيحة → 200 OK، رد AI مع relatedChunks
+- ✅ `POST /api/learn/ask-about-chunk` بدون chunkId → 400 `{"error":"chunkId and question are required"}`
+- ✅ `POST /api/learn/ask-about-chunk` مع chunkId غير موجود → 404 `{"error":"Chunk not found"}`
+- ✅ `POST /api/learn/ask-about-chunk` بسؤال فارغ → 400 validation error
+- ✅ غياب مفتاح Anthropic API → رد graceful مع رسالة توجيهية (لا يتعطل التطبيق)
+- ✅ TypeScript typecheck → نظيف بدون أخطاء
+- ✅ Vite HMR يحدّث الكود فوراً
+- ✅ الواجهة تعمل على `http://localhost:8080/education/`
 
 ### المرحلة 4: الاختبارات
 10. بناء `QuizModal.tsx`

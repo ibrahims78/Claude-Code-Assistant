@@ -14,6 +14,7 @@ import {
   ArrowRight, ArrowLeft, CheckCircle2, Circle, ChevronLeft, ChevronRight,
   Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2
 } from "lucide-react";
+import { LearnAiDrawer } from "@/components/LearnAiDrawer";
 
 interface Chunk {
   id: number;
@@ -414,6 +415,13 @@ export default function SectionPage() {
         </main>
 
       </div>
+
+      {/* ─── AI Assistant Drawer (floating) ─── */}
+      <LearnAiDrawer
+        chunkId={activeChunk?.id ?? null}
+        sectionId={sectionId}
+        chunkTitle={activeChunk ? getTitle(activeChunk) : undefined}
+      />
     </div>
   );
 }
