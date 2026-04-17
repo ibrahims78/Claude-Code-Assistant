@@ -13,3 +13,6 @@ export * from "./resource-translations";
 export * from "./resource-suggestions";
 export * from "./telegram-users";
 export * from "./telegram-conversations";
+export * from "./user-points";
+export * from "./user-achievements";
+export * from "./quiz-attempts";

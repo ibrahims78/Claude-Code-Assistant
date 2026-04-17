@@ -279,11 +279,35 @@ response: {
 
 ## القسم الرابع — ترتيب التنفيذ
 
-### المرحلة 1: الأساس (قاعدة البيانات + API)
-1. إضافة جداول: `user_points`, `user_achievements`, `quiz_attempts`
-2. تشغيل migration
-3. إنشاء endpoint: `GET /api/learn/stats`
-4. إنشاء endpoint: `POST /api/learn/ask-about-chunk`
+### ✅ المرحلة 1: الأساس (قاعدة البيانات + API) — مكتملة
+**تاريخ الإتمام:** 2026-04-17
+
+**المنجز:**
+1. ✅ إضافة جدول `user_points` — `lib/db/src/schema/user-points.ts`
+2. ✅ إضافة جدول `user_achievements` مع 10 إنجازات — `lib/db/src/schema/user-achievements.ts`
+3. ✅ إضافة جدول `quiz_attempts` — `lib/db/src/schema/quiz-attempts.ts`
+4. ✅ تصدير الجداول من `lib/db/src/schema/index.ts`
+5. ✅ تشغيل migration (`pnpm --filter @workspace/db run push`) — الجداول منشأة
+6. ✅ إنشاء `artifacts/api-server/src/lib/points.ts` — منطق النقاط والإنجازات
+7. ✅ إنشاء `artifacts/api-server/src/routes/learn.ts` مع الـ endpoints التالية:
+   - `GET /api/learn/stats` — إحصائيات المستخدم الكاملة
+   - `POST /api/learn/mark-read/:chunkId` — تسجيل قراءة قطعة + منح نقاط
+   - `POST /api/learn/ask-about-chunk` — سؤال الذكاء الاصطناعي مع سياق القطعة
+   - `GET /api/learn/quiz/:sectionId/generate` — توليد اختبار بـ AI
+   - `POST /api/learn/quiz/:sectionId/submit` — تصحيح الاختبار + نقاط
+   - `GET /api/learn/achievements` — قائمة الإنجازات مع حالة كل منها
+   - `POST /api/learn/suggest-next` — اقتراح الخطوة التالية بـ AI
+8. ✅ تسجيل الـ router في `artifacts/api-server/src/routes/index.ts`
+9. ✅ اختبار جميع الـ endpoints — تعمل بشكل صحيح
+
+**نتائج الاختبار:**
+- `GET /api/learn/stats` → 200 OK، يعيد 253 قطعة، 15 قسم، إحصائيات مفصّلة
+- `POST /api/learn/mark-read/1` → 200 OK، +5 نقاط، فتح إنجاز "first_read" (15 نقطة إجمالاً مع مكافأة الإنجاز)
+- `GET /api/learn/achievements` → 200 OK، 10 إنجازات كاملة
+- `GET /api/learn/quiz/resources/generate` → 200 OK، 5 أسئلة اختيار من متعدد بالعربية
+- `POST /api/learn/ask-about-chunk` → 200 OK، إجابة AI متكاملة مع سياق القطعة
+
+---
 
 ### المرحلة 2: إعادة تصميم الصفحات
 5. إعادة تصميم `LearnPage.tsx` بالكامل
@@ -292,20 +316,16 @@ response: {
 ### المرحلة 3: الذكاء الاصطناعي
 7. بناء `LearnAiDrawer.tsx`
 8. ربطه بـ `ask-about-chunk` endpoint
-9. إنشاء endpoint: `POST /api/learn/suggest-next`
-10. إضافة رسالة المساعد الترحيبية في LearnPage
+9. إضافة رسالة المساعد الترحيبية في LearnPage
 
 ### المرحلة 4: الاختبارات
-11. إنشاء endpoint: `POST /api/learn/quiz/:sectionId/generate`
-12. إنشاء endpoint: `POST /api/learn/quiz/:sectionId/submit`
-13. بناء `QuizModal.tsx`
-14. ربطه بصفحة القسم
+10. بناء `QuizModal.tsx`
+11. ربطه بصفحة القسم
 
 ### المرحلة 5: النقاط والإنجازات
-15. بناء منطق منح النقاط في كل endpoint مرتبط
-16. بناء `AchievementsPanel.tsx`
-17. إضافة مؤشر النقاط في Layout
-18. إضافة Toast عند كسب نقاط أو إنجازات جديدة
+12. بناء `AchievementsPanel.tsx`
+13. إضافة مؤشر النقاط في Layout
+14. إضافة Toast عند كسب نقاط أو إنجازات جديدة
 
 ---
 

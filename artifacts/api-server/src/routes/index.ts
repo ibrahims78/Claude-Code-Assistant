@@ -12,6 +12,7 @@ import resourcesRoutes from "./resources.js";
 import adminRoutes from "./admin.js";
 import webhookRoutes from "./telegram.js";
 import n8nRoutes from "./n8n.js";
+import learnRoutes from "./learn.js";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use("/resources", resourcesRoutes);
 router.use("/admin", adminRoutes);
 router.use("/webhook", webhookRoutes);
 router.use("/n8n-workflow", n8nRoutes);
+router.use("/learn", learnRoutes);
 
 export default router;
