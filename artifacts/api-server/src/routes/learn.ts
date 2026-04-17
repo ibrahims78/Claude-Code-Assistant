@@ -393,6 +393,13 @@ ${context}
 أعد النتيجة كـ JSON array فقط بهذا الشكل، بدون أي نص إضافي:
 [{"id":1,"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct":"A"},...]`;
 
+  // Check API key before calling AI
+  const hasKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!hasKey) {
+    res.status(503).json({ error: "⚠️ لم يتم إعداد مفتاح Anthropic API. ميزة الاختبار تتطلب الاتصال بالذكاء الاصطناعي." });
+    return;
+  }
+
   const { content: raw } = await chatWithClaude(
     [{ role: "user", content: prompt }],
     "أنت مصمم اختبارات تعليمية. أعد JSON فقط بدون أي نص إضافي."

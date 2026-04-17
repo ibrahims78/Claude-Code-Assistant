@@ -15,6 +15,7 @@ import {
   Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2
 } from "lucide-react";
 import { LearnAiDrawer } from "@/components/LearnAiDrawer";
+import { QuizModal } from "@/components/QuizModal";
 
 interface Chunk {
   id: number;
@@ -110,6 +111,7 @@ export default function SectionPage() {
 
   const [activeChunkIndex, setActiveChunkIndex] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showQuiz, setShowQuiz] = useState(false);
   const readingAreaRef = useRef<HTMLDivElement>(null);
 
   const { data: chunks = [], isLoading } = useQuery<Chunk[]>({
@@ -394,7 +396,7 @@ export default function SectionPage() {
                   <Button
                     size="sm"
                     className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() => toast({ title: isAr ? "قريباً! ميزة الاختبار قادمة في المرحلة القادمة" : "Coming soon! Quiz feature coming in the next phase." })}
+                    onClick={() => setShowQuiz(true)}
                   >
                     <Brain size={14} />
                     {isAr ? "🧠 اختبر نفسك" : "🧠 Quiz Yourself"}
@@ -415,6 +417,15 @@ export default function SectionPage() {
         </main>
 
       </div>
+
+      {/* ─── Quiz Modal ─── */}
+      <QuizModal
+        sectionId={sectionId}
+        sectionTitleAr={sectionTitles[sectionId]?.ar ?? sectionId}
+        sectionTitleEn={sectionTitles[sectionId]?.en ?? sectionId}
+        isOpen={showQuiz}
+        onClose={() => setShowQuiz(false)}
+      />
 
       {/* ─── AI Assistant Drawer (floating) ─── */}
       <LearnAiDrawer
