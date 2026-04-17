@@ -402,7 +402,11 @@ export default function SectionPage() {
                       {activeChunkIndex + 1} / {chunks.length}
                     </span>
                     {activeChunk.category && (
-                      <span className="capitalize">{activeChunk.category}</span>
+                      <span className="capitalize">
+                        {isAr
+                          ? ({ beginner: "مبتدئ", intermediate: "متوسط", advanced: "متقدم", general: "عام" } as Record<string, string>)[activeChunk.category] ?? activeChunk.category
+                          : activeChunk.category}
+                      </span>
                     )}
                   </div>
                   {getTitle(activeChunk) && (
