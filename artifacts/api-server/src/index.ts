@@ -4,6 +4,9 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { setIo } from "./lib/socket-io.js";
 import { reconnectOnBoot } from "./lib/whatsapp-manager.js";
+import { hashPassword } from "./lib/auth.js";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -43,8 +46,31 @@ io.on("connection", (socket) => {
   });
 });
 
+async function seedDefaultAdmin(): Promise<void> {
+  const admins = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.role, "admin"));
+
+  if (admins.length === 0) {
+    const passwordHash = hashPassword("123456");
+    await db.insert(usersTable).values({
+      username: "admin",
+      passwordHash,
+      role: "admin",
+      isActive: true,
+      mustChangePassword: false,
+    });
+    logger.info("Default admin user created (username: admin)");
+  }
+}
+
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
+
+  seedDefaultAdmin().catch((err: unknown) => {
+    logger.error({ err }, "Error during seedDefaultAdmin");
+  });
 
   // Reconnect WhatsApp sessions that had autoReconnect enabled
   reconnectOnBoot(io).catch((err: unknown) => {
