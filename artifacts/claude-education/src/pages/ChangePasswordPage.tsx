@@ -15,20 +15,22 @@ interface Requirement {
   test: (p: string) => boolean;
 }
 
-const requirements: Requirement[] = [
-  { label: "6 أحرف على الأقل", test: (p) => p.length >= 6 },
-  { label: "حرف كبير (A-Z)", test: (p) => /[A-Z]/.test(p) },
-  { label: "حرف صغير (a-z)", test: (p) => /[a-z]/.test(p) },
-  { label: "رقم أو رمز (!@#...)", test: (p) => /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
-];
-
 export default function ChangePasswordPage() {
   const { user, setUser, logout } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [, setLocation] = useLocation();
   const [form, setForm] = useState({ currentPassword: "", newPassword: "" });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const isAr = lang === "ar";
+
+  const requirements: Requirement[] = [
+    { label: isAr ? "6 أحرف على الأقل" : "At least 6 characters", test: (p) => p.length >= 6 },
+    { label: isAr ? "حرف كبير (A-Z)" : "Uppercase letter (A-Z)", test: (p) => /[A-Z]/.test(p) },
+    { label: isAr ? "حرف صغير (a-z)" : "Lowercase letter (a-z)", test: (p) => /[a-z]/.test(p) },
+    { label: isAr ? "رقم أو رمز (!@#...)" : "Number or symbol (!@#...)", test: (p) => /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+  ];
 
   const passed = requirements.map((r) => r.test(form.newPassword));
   const allPassed = passed.every(Boolean);

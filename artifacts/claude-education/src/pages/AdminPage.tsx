@@ -20,7 +20,8 @@ interface AdminStats {
 
 export default function AdminPage() {
   const { user } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const isAr = lang === "ar";
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [importing, setImporting] = useState(false);
@@ -35,7 +36,7 @@ export default function AdminPage() {
   if (user?.role !== "admin") {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Access denied</p>
+        <p className="text-muted-foreground">{isAr ? "غير مصرح" : "Access denied"}</p>
       </div>
     );
   }
@@ -64,10 +65,10 @@ export default function AdminPage() {
     try {
       const result = await api.post("/admin/sync-github") as SyncResult;
       setSyncResult(result);
-      toast({ title: result.message || "تمت المزامنة بنجاح" });
+      toast({ title: result.message || (isAr ? "تمت المزامنة بنجاح" : "Sync completed successfully") });
       refetch();
     } catch (err: any) {
-      toast({ title: "خطأ في المزامنة", description: err.message, variant: "destructive" });
+      toast({ title: isAr ? "خطأ في المزامنة" : "Sync error", description: err.message, variant: "destructive" });
     } finally {
       setSyncing(false);
     }
@@ -139,14 +140,16 @@ export default function AdminPage() {
             <div>
               <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
                 <Github size={14} className="text-muted-foreground" />
-                مزامنة المحتوى من GitHub
+                {isAr ? "مزامنة المحتوى من GitHub" : "Sync content from GitHub"}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {syncResult
-                  ? `✅ ${syncResult.sections} قسم · ${syncResult.chunks} جزء (جديد: ${syncResult.inserted} · محدَّث: ${syncResult.updated})`
+                  ? isAr
+                    ? `✅ ${syncResult.sections} قسم · ${syncResult.chunks} جزء (جديد: ${syncResult.inserted} · محدَّث: ${syncResult.updated})`
+                    : `✅ ${syncResult.sections} sections · ${syncResult.chunks} chunks (new: ${syncResult.inserted} · updated: ${syncResult.updated})`
                   : stats?.importLastRun
-                    ? `آخر تحديث: ${new Date(stats.importLastRun).toLocaleString("ar")}`
-                    : "جلب جميع ملفات Markdown من المستودع وتحديث قاعدة البيانات"}
+                    ? `${isAr ? "آخر تحديث:" : "Last updated:"} ${new Date(stats.importLastRun).toLocaleString(isAr ? "ar" : "en")}`
+                    : isAr ? "جلب جميع ملفات Markdown من المستودع وتحديث قاعدة البيانات" : "Fetch all Markdown files from the repo and update the database"}
               </p>
             </div>
             <Button
@@ -157,18 +160,22 @@ export default function AdminPage() {
               disabled={syncing}
             >
               <Github size={14} className={syncing ? "animate-spin" : ""} />
-              {syncing ? "يجلب..." : "مزامنة"}
+              {syncing ? (isAr ? "يجلب..." : "Fetching...") : (isAr ? "مزامنة" : "Sync")}
             </Button>
           </div>
 
           {/* Translate content */}
           <div className="flex items-center justify-between border-t border-border pt-3">
             <div>
-              <p className="text-sm font-medium text-foreground">ترجمة المحتوى إلى العربية</p>
+              <p className="text-sm font-medium text-foreground">
+                {isAr ? "ترجمة المحتوى إلى العربية" : "Translate content to Arabic"}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {translateResult
-                  ? `مُترجم: ${translateResult.translated} • متبقي: ${translateResult.remaining}`
-                  : "ترجمة 50 قطعة لكل دفعة باستخدام Claude AI"}
+                  ? isAr
+                    ? `مُترجم: ${translateResult.translated} • متبقي: ${translateResult.remaining}`
+                    : `Translated: ${translateResult.translated} • Remaining: ${translateResult.remaining}`
+                  : isAr ? "ترجمة 50 قطعة لكل دفعة باستخدام Claude AI" : "Translate 50 chunks per batch using Claude AI"}
               </p>
             </div>
             <Button
@@ -179,7 +186,7 @@ export default function AdminPage() {
               disabled={translating}
             >
               <Languages size={14} className={translating ? "animate-pulse" : ""} />
-              {translating ? "يترجم..." : "ترجمة"}
+              {translating ? (isAr ? "يترجم..." : "Translating...") : (isAr ? "ترجمة" : "Translate")}
             </Button>
           </div>
 
@@ -218,8 +225,8 @@ export default function AdminPage() {
             <CardContent className="p-4 flex items-center gap-3">
               <Users size={18} className="text-green-400" />
               <div>
-                <p className="text-sm font-medium text-foreground">إدارة المستخدمين</p>
-                <p className="text-xs text-muted-foreground">عرض وتعديل الأدوار</p>
+                <p className="text-sm font-medium text-foreground">{t("manageUsers")}</p>
+                <p className="text-xs text-muted-foreground">{isAr ? "عرض وتعديل الأدوار" : "View and edit roles"}</p>
               </div>
             </CardContent>
           </Card>
@@ -230,8 +237,8 @@ export default function AdminPage() {
             <CardContent className="p-4 flex items-center gap-3">
               <Shield size={18} className="text-yellow-400" />
               <div>
-                <p className="text-sm font-medium text-foreground">سجلات النظام</p>
-                <p className="text-xs text-muted-foreground">مراقبة الأنشطة والأحداث</p>
+                <p className="text-sm font-medium text-foreground">{isAr ? "سجلات النظام" : "System Logs"}</p>
+                <p className="text-xs text-muted-foreground">{isAr ? "مراقبة الأنشطة والأحداث" : "Monitor activities and events"}</p>
               </div>
             </CardContent>
           </Card>
@@ -242,8 +249,8 @@ export default function AdminPage() {
             <CardContent className="p-4 flex items-center gap-3">
               <Link2 size={18} className="text-orange-400" />
               <div>
-                <p className="text-sm font-medium text-foreground">إدارة المصادر</p>
-                <p className="text-xs text-muted-foreground">استيراد وتنظيم المصادر التعليمية</p>
+                <p className="text-sm font-medium text-foreground">{t("manageResources")}</p>
+                <p className="text-xs text-muted-foreground">{isAr ? "استيراد وتنظيم المصادر التعليمية" : "Import and organize learning resources"}</p>
               </div>
             </CardContent>
           </Card>

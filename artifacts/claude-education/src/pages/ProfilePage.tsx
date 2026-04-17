@@ -21,7 +21,8 @@ interface AdminStats {
 
 export default function ProfilePage() {
   const { user, setUser } = useAuth();
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const isAr = lang === "ar";
   const { toast } = useToast();
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "" });
   const [pwLoading, setPwLoading] = useState(false);
@@ -75,7 +76,7 @@ export default function ProfilePage() {
               <p className="text-lg font-bold text-foreground">{user?.username}</p>
               <p className="text-sm text-muted-foreground">{user?.email || "—"}</p>
               <Badge className={`mt-1 text-xs ${user?.role === "admin" ? "bg-primary/20 text-primary border-primary/30" : "bg-muted text-muted-foreground"} border`}>
-                {user?.role === "admin" ? "Admin" : "Employee"}
+                {user?.role === "admin" ? (isAr ? "مدير" : "Admin") : (isAr ? "موظف" : "Employee")}
               </Badge>
             </div>
           </div>

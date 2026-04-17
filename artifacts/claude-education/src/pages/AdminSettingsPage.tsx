@@ -57,7 +57,7 @@ export default function AdminSettingsPage() {
   if (user?.role !== "admin") {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Access denied</p>
+        <p className="text-muted-foreground">{lang === "ar" ? "غير مصرح" : "Access denied"}</p>
       </div>
     );
   }
