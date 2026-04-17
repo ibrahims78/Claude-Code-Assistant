@@ -185,7 +185,7 @@ export async function upsertCacheIntoDB(cache: GithubCache): Promise<{ inserted:
           .update(contentChunksTable)
           .set({
             title: chunk.title,
-            titleAr: sectionData.titleAr,
+            titleAr: chunk.title,
             content: chunk.content,
             contentAr: hasRealAr ? existingAr : chunk.content,
             section: sectionData.section,
@@ -197,7 +197,7 @@ export async function upsertCacheIntoDB(cache: GithubCache): Promise<{ inserted:
       } else {
         await db.insert(contentChunksTable).values({
           title: chunk.title,
-          titleAr: sectionData.titleAr,
+          titleAr: chunk.title,
           content: chunk.content,
           contentAr: chunk.content,
           category: sectionData.category,
