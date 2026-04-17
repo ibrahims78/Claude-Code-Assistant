@@ -659,3 +659,368 @@ response: {
 ---
 
 *هذه الخطة جاهزة للمراجعة. بعد موافقتك أبدأ التنفيذ المرحلي.*
+
+---
+
+## 🔎 مراجعة احترافية شاملة للكود — 2026-04-17
+
+> **المنهجية:** مراجعة يدوية لكل سطر كود + اختبار فعلي + مقارنة بالخطة المكتوبة
+
+---
+
+### أولاً: مدى اكتمال التنفيذ مقارنةً بالخطة
+
+| العنصر المطلوب في الخطة | الحالة الفعلية |
+|------------------------|---------------|
+| جدول `user_points` | ✅ منجز |
+| جدول `user_achievements` | ✅ منجز |
+| جدول `quiz_attempts` | ✅ منجز |
+| `GET /api/learn/stats` | ✅ منجز |
+| `POST /api/learn/mark-read/:id` | ✅ منجز |
+| `POST /api/learn/ask-about-chunk` | ✅ منجز |
+| `GET /api/learn/quiz/:id/generate` | ✅ منجز |
+| `POST /api/learn/quiz/:id/submit` | ✅ منجز |
+| `GET /api/learn/achievements` | ✅ منجز |
+| `POST /api/learn/suggest-next` | ✅ منجز |
+| `POST /api/learn/mark-complete/:sectionId` | ❌ **غير منجز** — مندمج داخل `mark-read` |
+| `LearnPage.tsx` (إعادة تصميم) | ✅ منجز |
+| `SectionPage.tsx` (إعادة تصميم) | ✅ منجز (مع استثناء — راجع الأخطاء) |
+| `LearnAiDrawer.tsx` | ✅ منجز |
+| `QuizModal.tsx` | ✅ منجز |
+| `AchievementsPanel.tsx` | ✅ منجز |
+| `PointsBadge.tsx` (كملف مستقل) | ⚠️ منجز كـ Component محلي داخل `Layout.tsx` |
+| `daily_streak_7` achievement | ❌ **غير منجز** — غائب من منطق التحقق |
+| شريط النقاط في Navbar | ✅ منجز |
+| دعم الإنجليزية في `suggest-next` | ❌ **غير منجز** — الـ prompt دائماً عربي |
+
+**نسبة اكتمال التنفيذ: ~90%**
+
+---
+
+### ثانياً: الأخطاء المكتشفة
+
+#### 🔴 خطأ حرج (Critical Bugs)
+
+**خطأ 1 — `getRankIcon` يقارن بحالة خاطئة (`LearnPage.tsx` سطر 103-107)**
+
+```typescript
+// الكود الحالي — خاطئ
+function getRankIcon(rank: string) {
+  if (rank === "Platinum") return "💎";  // API يُعيد "platinum" (lowercase)
+  if (rank === "Gold") return "🥇";      // لن تتطابق أبداً
+  if (rank === "Silver") return "🥈";
+  return "🥉"; // دائماً يُعيد برونزي حتى للذهبي والبلاتيني!
+}
+```
+
+```typescript
+// الصحيح
+function getRankIcon(rank: string) {
+  if (rank === "platinum") return "💎";
+  if (rank === "gold")     return "🥇";
+  if (rank === "silver")   return "🥈";
+  return "🥉";
+}
+```
+
+**التأثير:** أيقونة الرتبة في صفحة التعلم ستعرض دائماً 🥉 (برونزي) حتى لو كان المستخدم ذهبياً أو بلاتينياً.
+
+---
+
+**خطأ 2 — `LearnStats.rankIcon` لا يتطابق مع حقل API (`LearnPage.tsx` سطر 28)**
+
+```typescript
+// الكود الحالي — خاطئ
+interface LearnStats {
+  rankIcon: string;  // الحقل المتوقع
+  ...
+}
+// لكن API يُعيد: { icon: string, rank: string, ... }
+// الاستخدام: stats.rank يُمرر لـ getRankIcon — لكن TypeScript لا يُنبّه لأن getRankIcon يقبل string
+```
+
+**التأثير:** `stats?.rankIcon` سيكون `undefined` دائماً. الكود يعمل بالصدفة لأنه يستخدم `getRankIcon(stats.rank)` في السطر 222 بدلاً من `stats.rankIcon`.
+
+---
+
+**خطأ 3 — زر الاختبار في الـ Sidebar يعرض "Coming soon!" بدلاً من فتح `QuizModal` (`SectionPage.tsx` سطر 285)**
+
+```typescript
+// الكود الحالي — خاطئ
+onClick={() => toast({ title: "قريباً! اختبار القسم سيكون متاحاً قريباً" })}
+
+// الصحيح (والمنجز فعلاً في منطقة القراءة سطر 399)
+onClick={() => setShowQuiz(true)}
+```
+
+**التأثير:** المستخدم الذي يضغط على زر "🧠 اختبر نفسك" من الـ Sidebar يرى Toast بدلاً من فتح نافذة الاختبار. الزر في منطقة القراءة يعمل بشكل صحيح، لكن زر الـ Sidebar معطل.
+
+---
+
+#### 🟠 خطأ متوسط (Medium Bugs)
+
+**خطأ 4 — `passedQuizzes` متغير ميت وخاطئ (`learn.ts` سطر 73-75)**
+
+```typescript
+// الكود الحالي — مكرر وخاطئ وغير مستخدم
+const passedQuizzes = await db.select({ count: count() })
+  .from(quizAttemptsTable)
+  .where(and(eq(quizAttemptsTable.userId, user.id)));
+  // غياب فلتر passed: true — وهو متطابق تماماً مع quizStats أعلاه
+  // ثم لا يُستخدم passedQuizzes في الـ response
+```
+
+**التأثير:** استعلام DB زائد عند كل طلب `GET /api/learn/stats` (تأثير أداء طفيف).
+
+---
+
+**خطأ 5 — `daily_streak_7` إنجاز غير منجز في منطق `checkAndUnlockAchievements` (`points.ts`)**
+
+```typescript
+// في checks array — الإنجاز مفقود تماماً
+const checks = [
+  { key: "first_read", ... },
+  { key: "section_complete", ... },
+  { key: "beginner_done", ... },
+  { key: "intermediate_done", ... },
+  { key: "advanced_done", ... },
+  { key: "ai_explorer", ... },
+  { key: "completionist", ... },
+  // ❌ daily_streak_7 غائب — لن يُفتح أبداً
+];
+```
+
+**التأثير:** إنجاز "أسبوع متواصل" (🔥) معروض في الواجهة لكنه لن يُفتح أبداً. يتطلب تتبع تاريخ آخر دخول في DB.
+
+---
+
+**خطأ 6 — `suggest-next` يُنتج رسائل بالعربية فقط حتى عند استخدام الإنجليزية (`learn.ts` سطر 219-231)**
+
+```typescript
+// الكود الحالي
+const prompt = `أنت مستشار تعليمي...
+اكتب رسالة تشجيعية قصيرة جداً (جملة واحدة) باللغة العربية.`
+// لا يوجد lang parameter في الطلب
+// المستخدم الذي يختار English سيرى اقتراحاً عربياً في Banner الرئيسية
+```
+
+---
+
+#### 🟡 ملاحظات جودة كود (Code Quality)
+
+**ملاحظة 1 — تكرار بيانات الأقسام (DRY Violation)**
+
+بيانات أسماء الأقسام مكررة في ملفين منفصلين:
+- `LearnPage.tsx` → `sectionMeta` (سطر 44-74): يحتوي category + titleAr + titleEn + icon
+- `SectionPage.tsx` → `sectionTitles` (سطر 39-69): يحتوي titleAr + titleEn فقط
+
+يجب استخراجها لملف مشترك `src/lib/sections.ts`.
+
+---
+
+**ملاحظة 2 — `useMutation` لجلب البيانات (Anti-pattern)**
+
+```typescript
+// LearnPage.tsx سطر 130-133
+const suggestMutation = useMutation<SuggestNextResponse>({
+  mutationFn: () => api.post("/learn/suggest-next"),
+  onSuccess: () => setAiLoaded(true),
+});
+// يُستدعى بـ useEffect عند تحميل الصفحة
+```
+
+`suggest-next` يُستخدم لجلب بيانات عرض لا لتعديل state. يجب استخدام `useQuery` مع `enabled` بدلاً من `useMutation`. الفرق: لو أعاد المستخدم للصفحة لن يُعاد جلب الاقتراح (لأن `useMutation` لا يدعم `staleTime` / cache).
+
+---
+
+**ملاحظة 3 — `quizStore` in-memory ليس مناسباً للإنتاج**
+
+```typescript
+// learn.ts سطر 359
+const quizStore = new Map<string, {...}>();
+```
+
+بيانات الاختبارات تُفقد عند إعادة تشغيل الخادم. والخطة ذكرت هذا صراحةً: "production: use Redis or DB with TTL". يجب إضافة جدول `quiz_sessions` في قاعدة البيانات.
+
+---
+
+**ملاحظة 4 — `unlockAchievement` قد يمنح نقاط مكررة عند تعارض DB**
+
+```typescript
+// points.ts سطر 57-63
+await db.insert(userAchievementsTable)
+  .values({ userId, achievementKey: key })
+  .onConflictDoNothing(); // ← إذا كان موجوداً، لا يُضاف
+// لكن:
+await awardPoints(...); // ← تُمنح النقاط بغض النظر عن التعارض!
+```
+
+الكود محمي من الخارج (`checkAndUnlockAchievements` تتحقق مسبقاً)، لكن الدالة في حد ذاتها غير آمنة إذا استُدعيت مباشرة.
+
+---
+
+**ملاحظة 5 — N+1 Queries في `checkAndUnlockAchievements`**
+
+الدالة تُستدعى بعد كل `mark-read` وتقوم بـ:
+1. جلب كل الإنجازات المفتوحة
+2. جلب كل التقدم للمستخدم
+3. جلب **جميع** الـ chunks (621 صف!)
+4. جلب عدد المحادثات
+
+هذا 4 queries في كل قراءة لقطعة واحدة. مع نمو البيانات سيؤثر على الأداء.
+
+---
+
+### ثالثاً: مقترحات لرفع الاحترافية
+
+#### 🚀 مقترحات الأولوية القصوى (يجب تنفيذها)
+
+**مقترح 1 — إصلاح الأخطاء الحرجة الخمسة المذكورة أعلاه**
+
+**مقترح 2 — استخراج `sectionMeta` لملف مشترك**
+
+```typescript
+// src/lib/sections.ts
+export const SECTION_META: Record<string, { category, titleAr, titleEn, icon }> = { ... }
+// يُستورد في LearnPage.tsx و SectionPage.tsx
+```
+
+**مقترح 3 — تحويل `suggest-next` لـ `useQuery` بـ cache**
+
+```typescript
+// بدلاً من useMutation + useEffect
+const { data: suggestion } = useQuery({
+  queryKey: ["suggest-next"],
+  queryFn: () => api.post("/learn/suggest-next"),
+  staleTime: 5 * 60 * 1000, // 5 دقائق
+  enabled: sections.length > 0,
+});
+```
+
+**مقترح 4 — إضافة `lang` parameter لـ `suggest-next`**
+
+```typescript
+// Frontend يُرسل lang
+api.post("/learn/suggest-next", { lang })
+// Backend يبني prompt بحسب اللغة
+const prompt = lang === "ar" ? `...عربي...` : `...English...`
+```
+
+---
+
+#### ✨ مقترحات تحسين UX والاحترافية
+
+**مقترح 5 — Skeleton Cards بدلاً من Spinner الوحيد في `LearnPage`**
+
+```tsx
+// بدلاً من:
+<Loader2 className="animate-spin" size={32} />
+
+// استخدم skeleton لكل بطاقة:
+<div className="grid sm:grid-cols-2 gap-3">
+  {Array.from({length: 6}).map((_, i) => (
+    <Skeleton key={i} className="h-24 rounded-xl" />
+  ))}
+</div>
+```
+
+**مقترح 6 — إضافة Progress Ring دائري في بطاقات الأقسام**
+
+بدلاً من شريط التقدم الأفقي فقط، إضافة دائرة SVG صغيرة تعطي انطباعاً بصرياً أقوى بنسبة الإتمام.
+
+**مقترح 7 — Estimated Reading Time لكل قطعة**
+
+```tsx
+// احتساب وقت القراءة من طول المحتوى
+const wordsPerMinute = 200;
+const wordCount = content.split(/\s+/).length;
+const readTime = Math.max(1, Math.round(wordCount / wordsPerMinute));
+// عرض: "⏱️ دقيقتان للقراءة" بجانب عنوان القطعة
+```
+
+**مقترح 8 — Keyboard Shortcuts في `SectionPage`**
+
+```tsx
+// ← / → للتنقل بين القطع
+// R لتسجيل قطعة مقروءة
+// Escape لإغلاق الـ Drawer
+useEffect(() => {
+  const handler = (e: KeyboardEvent) => {
+    if (e.key === "ArrowRight") goNext();
+    if (e.key === "ArrowLeft")  goPrev();
+  };
+  document.addEventListener("keydown", handler);
+  return () => document.removeEventListener("keydown", handler);
+}, [activeChunkIndex]);
+```
+
+**مقترح 9 — إضافة `empty state` احترافي عند عدم وجود محتوى للقسم**
+
+```tsx
+// بدلاً من النص البسيط "لا يوجد محتوى"
+<div className="flex flex-col items-center justify-center h-full gap-4 text-center">
+  <BookOpen size={48} className="text-muted-foreground/20" />
+  <p className="text-lg font-medium text-muted-foreground">لا يوجد محتوى لهذا القسم بعد</p>
+  <Button variant="outline" onClick={() => setLocation("/learn")}>
+    العودة لمسارات التعلم
+  </Button>
+</div>
+```
+
+**مقترح 10 — Floating Progress Indicator مستمر في `SectionPage` للموبايل**
+
+الـ dots في الأسفل لا تُظهر نسبة واضحة. يُقترح استبدالها بـ:
+```tsx
+<div className="fixed bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t px-4 py-2 flex items-center justify-between md:hidden z-10">
+  <span className="text-xs text-muted-foreground">{readCount}/{chunks.length} قطعة</span>
+  <Progress value={progressPct} className="w-32 h-1.5" />
+  <span className="text-xs font-bold text-primary">{progressPct}%</span>
+</div>
+```
+
+**مقترح 11 — Toast بتصميم أغنى عند فتح الإنجازات**
+
+```tsx
+// بدلاً من:
+toast({ title: "+5 نقطة ⭐", description: "إنجاز جديد: first_read" })
+
+// تصميم مخصص مع أيقونة الإنجاز:
+toast({
+  title: `🏆 إنجاز جديد!`,
+  description: `📖 القارئ الأول — +10 نقاط مكافأة`,
+  className: "border-yellow-500/30 bg-yellow-500/5",
+})
+```
+
+**مقترح 12 — تحسين `LearnAiDrawer` بدعم Markdown في ردود المساعد**
+
+الردود الحالية تُعرض كـ plain text. أي كود أو قوائم في رد AI لن تُنسَّق. يُقترح استخدام `ReactMarkdown` في `MessageBubble` للردود العربية والإنجليزية.
+
+**مقترح 13 — حذف الـ `passedQuizzes` المتغير وإضافة `averageQuizScore` للـ stats**
+
+```typescript
+// بدلاً من passedQuizzes غير المستخدم
+const [avgScore] = await db.select({ avg: sql<number>`AVG(score * 100.0 / total_questions)` })
+  .from(quizAttemptsTable)
+  .where(eq(quizAttemptsTable.userId, user.id));
+// يُضاف للـ response: averageQuizScore: Math.round(avgScore?.avg ?? 0)
+```
+
+**مقترح 14 — تخزين الاختبارات في قاعدة البيانات بدلاً من `quizStore` in-memory**
+
+إضافة جدول `quiz_sessions` بـ TTL ساعة واحدة يضمن استمرار عمل الاختبارات حتى عند إعادة تشغيل الخادم.
+
+---
+
+### ملخص تنفيذي
+
+| الجانب | التقييم | الملاحظة |
+|--------|---------|---------|
+| اكتمال التنفيذ | 90% | endpoint واحد غائب + إنجاز daily_streak_7 |
+| جودة الكود | جيد (7/10) | أخطاء حرجة في مقارنة الرتبة + زر Sidebar |
+| تجربة المستخدم | جيدة (7.5/10) | تفتقر لـ skeleton، keyboard shortcuts، reading time |
+| الأداء | مقبول (6.5/10) | N+1 queries في achievements + in-memory quiz store |
+| الثنائية (AR/EN) | جيدة (7/10) | suggest-next دائماً عربي |
+| الكود النظيف | مقبول (6/10) | تكرار sectionMeta + anti-patterns |
+
+**الأولويات الفورية:** إصلاح getRankIcon (خطأ 1) + إصلاح زر Sidebar (خطأ 3) + حذف passedQuizzes (خطأ 4)
