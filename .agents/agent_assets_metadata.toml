@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "5al75habooQoMTroANblS"
+uri = "file://docs/learning-page-improvement-proposals.md"
+type = "text"
+title = "مقترحات تحسين صفحة التعلم"
