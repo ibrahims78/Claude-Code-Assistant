@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { LearnAiDrawer } from "@/components/LearnAiDrawer";
 import { QuizModal } from "@/components/QuizModal";
+import { SECTION_META, getSectionTitle } from "@/lib/sections";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Chunk {
   id: number;
@@ -36,37 +39,7 @@ interface MarkReadResponse {
   newAchievements: string[];
 }
 
-const sectionTitles: Record<string, { ar: string; en: string }> = {
-  "intro":                { ar: "مقدمة إلى Claude Code",         en: "Introduction" },
-  "INDEX":                { ar: "الفهرس",                        en: "Index" },
-  "LEARNING-ROADMAP":     { ar: "خارطة التعلم",                  en: "Learning Roadmap" },
-  "QUICK_REFERENCE":      { ar: "المرجع السريع",                 en: "Quick Reference" },
-  "slash-commands":       { ar: "أوامر الشريطة المائلة",         en: "Slash Commands" },
-  "cli":                  { ar: "واجهة سطر الأوامر",             en: "CLI Reference" },
-  "settings":             { ar: "الإعدادات والتكوين",            en: "Settings" },
-  "tips":                 { ar: "نصائح وأفضل الممارسات",         en: "Tips & Best Practices" },
-  "resources":            { ar: "الموارد والمراجع",              en: "Resources" },
-  "CATALOG":              { ar: "كتالوج الميزات",               en: "Features Catalog" },
-  "claude_concepts_guide":{ ar: "دليل مفاهيم Claude",            en: "Claude Concepts Guide" },
-  "clean-code-rules":     { ar: "قواعد الكود النظيف",           en: "Clean Code Rules" },
-  "STYLE_GUIDE":          { ar: "دليل الأسلوب",                 en: "Style Guide" },
-  "CONTRIBUTING":         { ar: "المساهمة في المشروع",           en: "Contributing" },
-  "hooks":                { ar: "نظام Hooks",                   en: "Hooks System" },
-  "memory":               { ar: "إدارة الذاكرة",                en: "Memory Management" },
-  "skills":               { ar: "المهارات",                     en: "Skills" },
-  "checkpoints":          { ar: "نقاط التفتيش",                 en: "Checkpoints" },
-  "security":             { ar: "أفضل ممارسات الأمان",          en: "Security Best Practices" },
-  "SECURITY":             { ar: "سياسة الأمان",                 en: "Security Policy" },
-  "CODE_OF_CONDUCT":      { ar: "قواعد السلوك",                 en: "Code of Conduct" },
-  "mcp":                  { ar: "بروتوكول MCP",                en: "Model Context Protocol" },
-  "agents":               { ar: "سير عمل متعدد الوكلاء",        en: "Multi-Agent Workflows" },
-  "workflows":            { ar: "سير العمل الآلي",              en: "Automated Workflows" },
-  "plugins":              { ar: "الإضافات",                     en: "Plugins" },
-  "advanced":             { ar: "الميزات المتقدمة",              en: "Advanced Features" },
-  "CLAUDE":               { ar: "ملف CLAUDE",                   en: "CLAUDE File" },
-  "CHANGELOG":            { ar: "سجل التغييرات",                en: "Changelog" },
-  "RELEASE_NOTES":        { ar: "ملاحظات الإصدار",              en: "Release Notes" },
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function cleanContent(text: string): string {
   return text
@@ -99,6 +72,8 @@ function MarkdownContent({ content, isArabic }: { content: string; isArabic: boo
     </div>
   );
 }
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SectionPage() {
   const [, params] = useRoute("/learn/:sectionId");
@@ -151,14 +126,25 @@ export default function SectionPage() {
   const progressPct = chunks.length > 0 ? Math.round((readCount / chunks.length) * 100) : 0;
   const allComplete = chunks.length > 0 && readCount === chunks.length;
 
-  const sectionTitle = sectionTitles[sectionId]
-    ? (isAr ? sectionTitles[sectionId].ar : sectionTitles[sectionId].en)
-    : sectionId.replace(/[-_]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  const sectionTitle = getSectionTitle(sectionId, lang);
 
   // Scroll reading area to top on chunk change
   useEffect(() => {
     readingAreaRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [activeChunkIndex]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowRight" && !isAr) goNext();
+      if (e.key === "ArrowLeft"  && !isAr) goPrev();
+      if (e.key === "ArrowRight" && isAr)  goPrev();
+      if (e.key === "ArrowLeft"  && isAr)  goNext();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [activeChunkIndex, chunks.length, isAr]);
 
   function goNext() {
     if (activeChunk && !activeChunk.isRead) {
@@ -191,6 +177,25 @@ export default function SectionPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
+
+  if (!chunks.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+          <Brain size={28} className="text-muted-foreground/40" />
+        </div>
+        <div>
+          <p className="text-base font-medium text-muted-foreground">
+            {isAr ? "لا يوجد محتوى لهذا القسم بعد" : "No content available for this section yet"}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setLocation("/learn")}>
+          <BackIcon size={14} className="me-2" />
+          {isAr ? "العودة لمسارات التعلم" : "Back to Learning Paths"}
+        </Button>
       </div>
     );
   }
@@ -275,14 +280,14 @@ export default function SectionPage() {
               })}
             </div>
 
-            {/* Quiz button at bottom of sidebar when complete */}
+            {/* Quiz button at bottom of sidebar — now correctly opens QuizModal */}
             {allComplete && (
               <div className="p-3 mt-auto border-t border-border">
                 <Button
                   variant="outline"
                   size="sm"
                   className="w-full gap-2 border-violet-500/30 text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/50 text-xs"
-                  onClick={() => toast({ title: isAr ? "قريباً! اختبار القسم سيكون متاحاً قريباً" : "Coming soon! Section quiz will be available soon." })}
+                  onClick={() => setShowQuiz(true)}
                 >
                   <Brain size={14} />
                   {isAr ? "🧠 اختبر نفسك" : "🧠 Quiz Yourself"}
@@ -293,127 +298,127 @@ export default function SectionPage() {
         </aside>
 
         {/* Mobile chunk navigation strip */}
-        <div className="md:hidden absolute bottom-0 inset-x-0 z-10 bg-background border-t border-border px-3 py-2 flex items-center gap-2 overflow-x-auto">
-          {chunks.map((chunk, index) => (
-            <button
-              key={chunk.id}
-              onClick={() => selectChunk(index)}
-              className={cn(
-                "w-2.5 h-2.5 rounded-full shrink-0 transition-all",
-                index === activeChunkIndex ? "bg-primary scale-125" : chunk.isRead ? "bg-green-500" : "bg-muted-foreground/30"
-              )}
-            />
-          ))}
+        <div className="md:hidden absolute bottom-0 inset-x-0 z-10 bg-background/95 backdrop-blur border-t border-border px-3 py-2 flex items-center gap-2 overflow-x-auto">
+          <span className="text-[10px] text-muted-foreground shrink-0 me-1">
+            {readCount}/{chunks.length}
+          </span>
+          <Progress value={progressPct} className="w-20 h-1.5 shrink-0" />
+          <div className="flex items-center gap-1.5 ms-2">
+            {chunks.map((chunk, index) => (
+              <button
+                key={chunk.id}
+                onClick={() => selectChunk(index)}
+                className={cn(
+                  "w-2.5 h-2.5 rounded-full shrink-0 transition-all",
+                  index === activeChunkIndex ? "bg-primary scale-125" : chunk.isRead ? "bg-green-500" : "bg-muted-foreground/30"
+                )}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Reading Area */}
         <main ref={readingAreaRef} className="flex-1 overflow-y-auto pb-16 md:pb-0">
-          {activeChunk ? (
-            <div className="p-5 md:p-8 max-w-2xl mx-auto">
+          <div className="p-5 md:p-8 max-w-2xl mx-auto">
 
-              {/* Chunk header */}
-              <div className="mb-6">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <h2 className="text-lg font-bold text-foreground leading-snug">
-                    {getTitle(activeChunk)}
-                  </h2>
-                  {activeChunk.isRead && (
-                    <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
-                  )}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{activeChunkIndex + 1} / {chunks.length}</span>
-                  {activeChunk.category && (
-                    <>
-                      <span>·</span>
-                      <span>{activeChunk.category}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="mb-8">
-                <MarkdownContent content={getContent(activeChunk)} isArabic={isAr} />
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-4 border-t border-border">
-                {!activeChunk.isRead ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50"
-                    onClick={markCurrentRead}
-                    disabled={markReadMutation.isPending}
-                  >
-                    {markReadMutation.isPending
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <CheckCircle2 size={14} />
-                    }
-                    {isAr ? "✓ تم القراءة (+5 نقاط)" : "✓ Mark as Read (+5 pts)"}
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-green-500 text-sm">
-                    <CheckCircle2 size={15} />
-                    <span>{isAr ? "تمت القراءة" : "Read"}</span>
-                  </div>
+            {/* Chunk header */}
+            <div className="mb-6">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h2 className="text-lg font-bold text-foreground leading-snug">
+                  {getTitle(activeChunk)}
+                </h2>
+                {activeChunk.isRead && (
+                  <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
                 )}
-
-                <div className="flex items-center gap-2 sm:ms-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={goPrev}
-                    disabled={activeChunkIndex === 0}
-                  >
-                    <PrevIcon size={13} />
-                    {isAr ? "السابق" : "Prev"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={goNext}
-                    disabled={activeChunkIndex === chunks.length - 1}
-                  >
-                    {isAr ? "التالي" : "Next"}
-                    <NextIcon size={13} />
-                  </Button>
-                </div>
               </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{activeChunkIndex + 1} / {chunks.length}</span>
+                {activeChunk.category && (
+                  <>
+                    <span>·</span>
+                    <span>{activeChunk.category}</span>
+                  </>
+                )}
+              </div>
+            </div>
 
-              {/* Quiz CTA when all chunks read */}
-              {allComplete && (
-                <div className="mt-6 rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 text-center">
-                  <p className="text-sm text-foreground font-medium mb-1">
-                    🎉 {isAr ? "أنجزت هذا القسم بالكامل!" : "You completed this section!"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    {isAr ? "اختبر فهمك بخمسة أسئلة سريعة" : "Test your understanding with 5 quick questions"}
-                  </p>
-                  <Button
-                    size="sm"
-                    className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() => setShowQuiz(true)}
-                  >
-                    <Brain size={14} />
-                    {isAr ? "🧠 اختبر نفسك" : "🧠 Quiz Yourself"}
-                  </Button>
-                  <div className="flex items-center justify-center gap-1 mt-2 text-xs text-yellow-400">
-                    <Star size={12} />
-                    <span>{isAr ? "حتى 200 نقطة إضافية!" : "Up to 200 bonus points!"}</span>
-                  </div>
+            {/* Content */}
+            <div className="mb-8">
+              <MarkdownContent content={getContent(activeChunk)} isArabic={isAr} />
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-4 border-t border-border">
+              {!activeChunk.isRead ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50"
+                  onClick={markCurrentRead}
+                  disabled={markReadMutation.isPending}
+                >
+                  {markReadMutation.isPending
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <CheckCircle2 size={14} />
+                  }
+                  {isAr ? "✓ تم القراءة (+5 نقاط)" : "✓ Mark as Read (+5 pts)"}
+                </Button>
+              ) : (
+                <div className="flex items-center gap-1.5 text-green-500 text-sm">
+                  <CheckCircle2 size={15} />
+                  <span>{isAr ? "تمت القراءة" : "Read"}</span>
                 </div>
               )}
 
+              <div className="flex items-center gap-2 sm:ms-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={goPrev}
+                  disabled={activeChunkIndex === 0}
+                >
+                  <PrevIcon size={13} />
+                  {isAr ? "السابق" : "Prev"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={goNext}
+                  disabled={activeChunkIndex === chunks.length - 1}
+                >
+                  {isAr ? "التالي" : "Next"}
+                  <NextIcon size={13} />
+                </Button>
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              {isAr ? "لا يوجد محتوى" : "No content available"}
-            </div>
-          )}
+
+            {/* Quiz CTA when all chunks read */}
+            {allComplete && (
+              <div className="mt-6 rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 text-center">
+                <p className="text-sm text-foreground font-medium mb-1">
+                  🎉 {isAr ? "أنجزت هذا القسم بالكامل!" : "You completed this section!"}
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {isAr ? "اختبر فهمك بخمسة أسئلة سريعة" : "Test your understanding with 5 quick questions"}
+                </p>
+                <Button
+                  size="sm"
+                  className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={() => setShowQuiz(true)}
+                >
+                  <Brain size={14} />
+                  {isAr ? "🧠 اختبر نفسك" : "🧠 Quiz Yourself"}
+                </Button>
+                <div className="flex items-center justify-center gap-1 mt-2 text-xs text-yellow-400">
+                  <Star size={12} />
+                  <span>{isAr ? "حتى 200 نقطة إضافية!" : "Up to 200 bonus points!"}</span>
+                </div>
+              </div>
+            )}
+
+          </div>
         </main>
 
       </div>
@@ -421,8 +426,8 @@ export default function SectionPage() {
       {/* ─── Quiz Modal ─── */}
       <QuizModal
         sectionId={sectionId}
-        sectionTitleAr={sectionTitles[sectionId]?.ar ?? sectionId}
-        sectionTitleEn={sectionTitles[sectionId]?.en ?? sectionId}
+        sectionTitleAr={SECTION_META[sectionId]?.titleAr ?? sectionId}
+        sectionTitleEn={SECTION_META[sectionId]?.titleEn ?? sectionId}
         isOpen={showQuiz}
         onClose={() => setShowQuiz(false)}
       />

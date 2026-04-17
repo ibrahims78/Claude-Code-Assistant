@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { db, contentChunksTable, userProgressTable, userPointsTable, userAchievementsTable, quizAttemptsTable, conversationsTable } from "@workspace/db";
-import { eq, and, count, desc, sum, inArray } from "drizzle-orm";
+import { eq, and, count, desc, sum, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
-import { chatWithClaude, buildSystemPrompt } from "../lib/claude.js";
+import { chatWithClaude } from "../lib/claude.js";
 import { searchSimilarChunks } from "../lib/rag.js";
 import { awardPoints, getTotalPoints, getRank, getUnlockedAchievements, checkAndUnlockAchievements, trackSessionRead } from "../lib/points.js";
 import { ACHIEVEMENT_META, ACHIEVEMENT_KEYS } from "@workspace/db";
@@ -17,23 +17,19 @@ router.use(requireAuth);
 router.get("/stats", async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user: User }).user;
 
-  // Points
   const totalPoints = await getTotalPoints(user.id);
   const rankInfo = getRank(totalPoints);
 
-  // Recent point history (last 10)
   const recentPoints = await db.select()
     .from(userPointsTable)
     .where(eq(userPointsTable.userId, user.id))
     .orderBy(desc(userPointsTable.createdAt))
     .limit(10);
 
-  // Progress
   const progress = await db.select().from(userProgressTable)
     .where(eq(userProgressTable.userId, user.id));
   const readChunkIds = new Set(progress.map(p => p.chunkId));
 
-  // All chunks summary
   const allChunks = await db.select({
     id: contentChunksTable.id,
     section: contentChunksTable.section,
@@ -52,7 +48,6 @@ router.get("/stats", async (req: Request, res: Response): Promise<void> => {
 
   const sectionsCompleted = [...sectionMap.values()].filter(v => v.read === v.total && v.total > 0).length;
 
-  // Category progress
   const categoryProgress: Record<string, { total: number; read: number; pct: number }> = {};
   for (const [, v] of sectionMap) {
     const cat = v.category;
@@ -65,16 +60,22 @@ router.get("/stats", async (req: Request, res: Response): Promise<void> => {
     c.pct = c.total > 0 ? Math.round((c.read / c.total) * 100) : 0;
   }
 
-  // Quizzes
   const [quizStats] = await db.select({ count: count() })
     .from(quizAttemptsTable)
-    .where(and(eq(quizAttemptsTable.userId, user.id)));
+    .where(eq(quizAttemptsTable.userId, user.id));
 
-  const passedQuizzes = await db.select({ count: count() })
+  const [passedQuizStats] = await db.select({ count: count() })
     .from(quizAttemptsTable)
-    .where(and(eq(quizAttemptsTable.userId, user.id)));
+    .where(and(
+      eq(quizAttemptsTable.userId, user.id),
+      eq(quizAttemptsTable.passed, true)
+    ));
 
-  // Achievements
+  const [avgScoreResult] = await db.select({
+    avg: sql<number>`COALESCE(AVG(${quizAttemptsTable.score} * 100.0 / NULLIF(${quizAttemptsTable.totalQuestions}, 0)), 0)`,
+  }).from(quizAttemptsTable)
+    .where(eq(quizAttemptsTable.userId, user.id));
+
   const unlockedKeys = await getUnlockedAchievements(user.id);
   const achievements = ACHIEVEMENT_KEYS.map(key => ({
     key,
@@ -82,7 +83,6 @@ router.get("/stats", async (req: Request, res: Response): Promise<void> => {
     unlocked: unlockedKeys.includes(key),
   }));
 
-  // Conversations count
   const [convCount] = await db.select({ count: count() })
     .from(conversationsTable)
     .where(eq(conversationsTable.userId, user.id));
@@ -96,6 +96,8 @@ router.get("/stats", async (req: Request, res: Response): Promise<void> => {
     totalSections: sectionMap.size,
     categoryProgress,
     quizzesTaken: quizStats?.count ?? 0,
+    quizzesPassed: passedQuizStats?.count ?? 0,
+    averageQuizScore: Math.round(Number(avgScoreResult?.avg ?? 0)),
     aiConversations: convCount?.count ?? 0,
     achievements,
     recentActivity: recentPoints,
@@ -118,7 +120,6 @@ router.post("/ask-about-chunk", async (req: Request, res: Response): Promise<voi
     return;
   }
 
-  // Fetch the chunk being read
   const [chunk] = await db.select().from(contentChunksTable)
     .where(eq(contentChunksTable.id, chunkId));
 
@@ -127,10 +128,8 @@ router.post("/ask-about-chunk", async (req: Request, res: Response): Promise<voi
     return;
   }
 
-  // Search for related chunks using RAG
   const relatedChunks = await searchSimilarChunks(question, 3);
 
-  // Build context from the current chunk + related
   const chunkTitle = lang === "ar" ? (chunk.titleAr || chunk.title) : chunk.title;
   const chunkContent = lang === "ar" ? (chunk.contentAr || chunk.content) : chunk.content;
 
@@ -159,7 +158,6 @@ Answer the user's question based on this context. Include a practical example if
     systemPrompt
   );
 
-  // Award points for AI usage (first 5 conversations unlock ai_explorer)
   await awardPoints(user.id, 5, "ai_question", { chunkId, section: chunk.section });
   const newAchievements = await checkAndUnlockAchievements(user.id);
 
@@ -180,8 +178,8 @@ Answer the user's question based on this context. Include a practical example if
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/suggest-next", async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user: User }).user;
+  const { lang = "ar" } = req.body as { lang?: "ar" | "en" };
 
-  // Calculate progress per category
   const progress = await db.select().from(userProgressTable)
     .where(eq(userProgressTable.userId, user.id));
   const readChunkIds = new Set(progress.map(p => p.chunkId));
@@ -208,15 +206,15 @@ router.post("/suggest-next", async (req: Request, res: Response): Promise<void> 
 
   const pct = (cat: string) => catTotals[cat] ? Math.round((catRead[cat] || 0) / catTotals[cat] * 100) : 0;
 
-  // Find best next section (started but not completed, or not started)
   const incompleteSections = Object.entries(sectionTotals)
     .filter(([, v]) => v.read < v.total)
-    .sort(([, a], [, b]) => (b.read / b.total) - (a.read / a.total)); // prioritize most-started
+    .sort(([, a], [, b]) => (b.read / b.total) - (a.read / a.total));
 
   const suggestedSection = incompleteSections[0]?.[0] ?? null;
   const totalPoints = await getTotalPoints(user.id);
 
-  const prompt = `أنت مستشار تعليمي لمنصة تعلّم Claude Code.
+  const prompt = lang === "ar"
+    ? `أنت مستشار تعليمي لمنصة تعلّم Claude Code.
 تقدم المستخدم:
 - المستوى المبتدئ: ${pct("beginner")}% مكتمل
 - المستوى المتوسط: ${pct("intermediate")}% مكتمل
@@ -227,15 +225,31 @@ router.post("/suggest-next", async (req: Request, res: Response): Promise<void> 
 اكتب رسالة تشجيعية قصيرة جداً (جملة واحدة) باللغة العربية. لا تذكر أرقاماً بالضرورة.
 ثم في السطر الثاني اكتب فقط: SECTION:اسم_القسم
 مثال: رائع! استمر في تقدمك الممتاز.
+SECTION:slash-commands`
+    : `You are a learning advisor for a Claude Code learning platform.
+User progress:
+- Beginner level: ${pct("beginner")}% complete
+- Intermediate level: ${pct("intermediate")}% complete
+- Advanced level: ${pct("advanced")}% complete
+- Suggested section: ${suggestedSection ?? "none"}
+- Total points: ${totalPoints}
+
+Write a very short encouraging message (one sentence) in English. Numbers are optional.
+Then on the second line write only: SECTION:section_name
+Example: Great progress! Keep up the excellent work.
 SECTION:slash-commands`;
+
+  const systemMsg = lang === "ar"
+    ? "أنت مستشار تعليمي. أجب فقط كما في التعليمات."
+    : "You are a learning advisor. Reply exactly as instructed.";
 
   const { content: raw } = await chatWithClaude(
     [{ role: "user", content: prompt }],
-    "أنت مستشار تعليمي. أجب فقط كما في التعليمات."
+    systemMsg
   );
 
   const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
-  const message = lines[0] ?? "استمر في التعلم!";
+  const message = lines[0] ?? (lang === "ar" ? "استمر في التعلم!" : "Keep learning!");
   const sectionLine = lines.find(l => l.startsWith("SECTION:"));
   const aiSuggestedSection = sectionLine ? sectionLine.replace("SECTION:", "").trim() : suggestedSection;
 
@@ -267,7 +281,6 @@ router.post("/mark-read/:chunkId", async (req: Request, res: Response): Promise<
     return;
   }
 
-  // Insert progress (idempotent)
   const existing = await db.select().from(userProgressTable)
     .where(and(
       eq(userProgressTable.userId, user.id),
@@ -284,20 +297,15 @@ router.post("/mark-read/:chunkId", async (req: Request, res: Response): Promise<
       section: chunk.section,
     });
 
-    // Award points for reading
     await awardPoints(user.id, 5, "chunk_read", { chunkId, section: chunk.section });
     pointsEarned = 5;
 
-    // Track session reads for speed_reader
     const sessionAchievements = await trackSessionRead(user.id);
-
-    // Check all achievements
     newAchievements = [
       ...sessionAchievements,
       ...(await checkAndUnlockAchievements(user.id)),
     ];
 
-    // Check if the whole section is now complete
     const sectionChunks = await db.select({ id: contentChunksTable.id })
       .from(contentChunksTable)
       .where(eq(contentChunksTable.section, chunk.section || ""));
@@ -310,7 +318,6 @@ router.post("/mark-read/:chunkId", async (req: Request, res: Response): Promise<
       ));
 
     if (sectionChunks.length > 0 && sectionProgress.length >= sectionChunks.length) {
-      // Section completed! Award bonus
       await awardPoints(user.id, 50, "section_complete", { section: chunk.section });
       pointsEarned += 50;
     }
@@ -321,6 +328,60 @@ router.post("/mark-read/:chunkId", async (req: Request, res: Response): Promise<
   res.json({
     success: true,
     alreadyRead: existing.length > 0,
+    pointsEarned,
+    totalPoints,
+    newAchievements,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/learn/mark-complete/:sectionId — Mark entire section as complete
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/mark-complete/:sectionId", async (req: Request, res: Response): Promise<void> => {
+  const user = (req as Request & { user: User }).user;
+  const { sectionId } = req.params;
+
+  const sectionChunks = await db.select({ id: contentChunksTable.id })
+    .from(contentChunksTable)
+    .where(eq(contentChunksTable.section, sectionId));
+
+  if (sectionChunks.length === 0) {
+    res.status(404).json({ error: "Section not found or empty" });
+    return;
+  }
+
+  const existingProgress = await db.select({ chunkId: userProgressTable.chunkId })
+    .from(userProgressTable)
+    .where(and(
+      eq(userProgressTable.userId, user.id),
+      eq(userProgressTable.section, sectionId)
+    ));
+
+  const existingSet = new Set(existingProgress.map(p => p.chunkId));
+  const toInsert = sectionChunks.filter(c => !existingSet.has(c.id));
+  let pointsEarned = 0;
+
+  for (const chunk of toInsert) {
+    await db.insert(userProgressTable).values({
+      userId: user.id,
+      chunkId: chunk.id,
+      section: sectionId,
+    });
+    await awardPoints(user.id, 5, "chunk_read", { chunkId: chunk.id, section: sectionId });
+    pointsEarned += 5;
+  }
+
+  if (toInsert.length > 0) {
+    await awardPoints(user.id, 50, "section_complete", { section: sectionId });
+    pointsEarned += 50;
+  }
+
+  const newAchievements = await checkAndUnlockAchievements(user.id);
+  const totalPoints = await getTotalPoints(user.id);
+
+  res.json({
+    success: true,
+    chunksMarked: toInsert.length,
     pointsEarned,
     totalPoints,
     newAchievements,
@@ -355,7 +416,6 @@ router.get("/achievements", async (req: Request, res: Response): Promise<void> =
 // GET /api/learn/quiz/:sectionId/generate — Generate quiz for a section
 // ─────────────────────────────────────────────────────────────────────────────
 
-// In-memory quiz store (production: use Redis or DB with TTL)
 const quizStore = new Map<string, { questions: QuizQuestion[]; section: string; userId: number; createdAt: number }>();
 
 interface QuizQuestion {
@@ -365,11 +425,20 @@ interface QuizQuestion {
   correct: string;
 }
 
+// Clean up expired quizzes (older than 2 hours) periodically
+setInterval(() => {
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+  const now = Date.now();
+  for (const [key, val] of quizStore.entries()) {
+    if (now - val.createdAt > TWO_HOURS) quizStore.delete(key);
+  }
+}, 30 * 60 * 1000); // run every 30 min
+
 router.get("/quiz/:sectionId/generate", async (req: Request, res: Response): Promise<void> => {
   const user = (req as Request & { user: User }).user;
   const { sectionId } = req.params;
+  const lang = (req.query.lang as "ar" | "en") || "ar";
 
-  // Fetch up to 8 chunks from the section as context
   const chunks = await db.select()
     .from(contentChunksTable)
     .where(eq(contentChunksTable.section, sectionId))
@@ -380,29 +449,44 @@ router.get("/quiz/:sectionId/generate", async (req: Request, res: Response): Pro
     return;
   }
 
-  const context = chunks.map(c =>
-    `عنوان: ${c.titleAr || c.title}\nمحتوى: ${(c.contentAr || c.content).slice(0, 400)}`
-  ).join("\n\n---\n\n");
+  const hasKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!hasKey) {
+    res.status(503).json({ error: isArabicLang(lang)
+      ? "⚠️ لم يتم إعداد مفتاح Anthropic API. ميزة الاختبار تتطلب الاتصال بالذكاء الاصطناعي."
+      : "⚠️ Anthropic API key not configured. Quiz feature requires AI connection."
+    });
+    return;
+  }
 
-  const prompt = `بناءً على المحتوى التالي من قسم "${sectionId}":
+  const context = lang === "ar"
+    ? chunks.map(c => `عنوان: ${c.titleAr || c.title}\nمحتوى: ${(c.contentAr || c.content).slice(0, 400)}`).join("\n\n---\n\n")
+    : chunks.map(c => `Title: ${c.title}\nContent: ${c.content.slice(0, 400)}`).join("\n\n---\n\n");
+
+  const prompt = lang === "ar"
+    ? `بناءً على المحتوى التالي من قسم "${sectionId}":
 
 ${context}
 
 اصنع بالضبط 5 أسئلة اختيار من متعدد باللغة العربية.
 كل سؤال: نص السؤال + 4 خيارات (A,B,C,D) + الإجابة الصحيحة.
 أعد النتيجة كـ JSON array فقط بهذا الشكل، بدون أي نص إضافي:
+[{"id":1,"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct":"A"},...]`
+    : `Based on the following content from the "${sectionId}" section:
+
+${context}
+
+Create exactly 5 multiple-choice questions in English.
+Each question: question text + 4 options (A,B,C,D) + correct answer.
+Return ONLY a JSON array in this exact format, no extra text:
 [{"id":1,"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct":"A"},...]`;
 
-  // Check API key before calling AI
-  const hasKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!hasKey) {
-    res.status(503).json({ error: "⚠️ لم يتم إعداد مفتاح Anthropic API. ميزة الاختبار تتطلب الاتصال بالذكاء الاصطناعي." });
-    return;
-  }
+  const systemMsg = lang === "ar"
+    ? "أنت مصمم اختبارات تعليمية. أعد JSON فقط بدون أي نص إضافي."
+    : "You are an educational quiz designer. Return only JSON, no extra text.";
 
   const { content: raw } = await chatWithClaude(
     [{ role: "user", content: prompt }],
-    "أنت مصمم اختبارات تعليمية. أعد JSON فقط بدون أي نص إضافي."
+    systemMsg
   );
 
   let questions: QuizQuestion[];
@@ -416,15 +500,15 @@ ${context}
     return;
   }
 
-  // Store quiz with answers server-side
   const quizId = `${user.id}_${sectionId}_${Date.now()}`;
   quizStore.set(quizId, { questions, section: sectionId, userId: user.id, createdAt: Date.now() });
 
-  // Return questions without correct answers
   const publicQuestions = questions.map(({ correct: _correct, ...q }) => q);
 
   res.json({ quizId, questions: publicQuestions });
 });
+
+function isArabicLang(lang: string) { return lang === "ar"; }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/learn/quiz/:sectionId/submit — Submit quiz answers
@@ -439,7 +523,6 @@ router.post("/quiz/:sectionId/submit", async (req: Request, res: Response): Prom
     return;
   }
 
-  // Grade answers
   let score = 0;
   const results = stored.questions.map(q => {
     const userAnswer = answers[String(q.id)] ?? "";
@@ -458,7 +541,6 @@ router.post("/quiz/:sectionId/submit", async (req: Request, res: Response): Prom
   const percentage = Math.round((score / total) * 100);
   const passed = percentage >= 60;
 
-  // Award points: 20 per correct answer + 100 bonus for 100%
   let pointsEarned = score * 20;
   if (percentage === 100) pointsEarned += 100;
 
@@ -469,7 +551,6 @@ router.post("/quiz/:sectionId/submit", async (req: Request, res: Response): Prom
     percentage,
   });
 
-  // Save attempt to DB
   await db.insert(quizAttemptsTable).values({
     userId: user.id,
     section: stored.section,
@@ -481,7 +562,6 @@ router.post("/quiz/:sectionId/submit", async (req: Request, res: Response): Prom
     completedAt: new Date(),
   });
 
-  // Check achievements (quiz_perfect)
   let newAchievements: string[] = [];
   if (percentage === 100) {
     const unlockedKeys = await getUnlockedAchievements(user.id);
@@ -494,7 +574,6 @@ router.post("/quiz/:sectionId/submit", async (req: Request, res: Response): Prom
 
   const totalPoints = await getTotalPoints(user.id);
 
-  // Cleanup quiz from store
   quizStore.delete(quizId);
 
   res.json({

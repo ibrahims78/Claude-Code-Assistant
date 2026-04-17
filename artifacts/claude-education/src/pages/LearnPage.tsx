@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
@@ -10,10 +10,22 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   BookOpen, GraduationCap, Star, Trophy, ArrowRight, ArrowLeft,
-  CheckCircle2, Loader2, Sparkles, ChevronRight,
-  Terminal, FileText, Map, Zap, Shield, Code2, Cpu, GitBranch,
-  Settings, List, Lightbulb, BookMarked, Database, Wrench, Layers
+  CheckCircle2, Loader2, Sparkles,
+  List, Map, Zap, Terminal, Settings, Lightbulb, Database,
+  Layers, BookMarked, Code2, FileText, GitBranch, Wrench, Shield, Cpu,
 } from "lucide-react";
+import { SECTION_META, type Category } from "@/lib/sections";
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  BookOpen: <BookOpen size={16} />, List: <List size={16} />, Map: <Map size={16} />,
+  Zap: <Zap size={16} />, Terminal: <Terminal size={16} />, Settings: <Settings size={16} />,
+  Lightbulb: <Lightbulb size={16} />, Database: <Database size={16} />, Layers: <Layers size={16} />,
+  BookMarked: <BookMarked size={16} />, Code2: <Code2 size={16} />, FileText: <FileText size={16} />,
+  GitBranch: <GitBranch size={16} />, Wrench: <Wrench size={16} />, GraduationCap: <GraduationCap size={16} />,
+  CheckCircle2: <CheckCircle2 size={16} />, Shield: <Shield size={16} />, Cpu: <Cpu size={16} />,
+};
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Section {
   section: string;
@@ -25,7 +37,7 @@ interface Section {
 interface LearnStats {
   totalPoints: number;
   rank: string;
-  rankIcon: string;
+  icon: string;
   chunksRead: number;
   totalChunks: number;
   achievements: { unlocked: boolean }[];
@@ -38,40 +50,22 @@ interface SuggestNextResponse {
   totalPoints: number;
 }
 
-type Category = "beginner" | "intermediate" | "advanced" | "general";
 type Filter = "all" | Category;
 
-const sectionMeta: Record<string, { category: Category; titleAr: string; titleEn: string; icon: React.ReactNode }> = {
-  "intro":                { category: "beginner",     titleAr: "مقدمة إلى Claude Code",         titleEn: "Introduction",           icon: <BookOpen size={16} /> },
-  "INDEX":                { category: "beginner",     titleAr: "الفهرس",                        titleEn: "Index",                  icon: <List size={16} /> },
-  "LEARNING-ROADMAP":     { category: "beginner",     titleAr: "خارطة التعلم",                  titleEn: "Learning Roadmap",       icon: <Map size={16} /> },
-  "QUICK_REFERENCE":      { category: "beginner",     titleAr: "المرجع السريع",                 titleEn: "Quick Reference",        icon: <Zap size={16} /> },
-  "slash-commands":       { category: "beginner",     titleAr: "أوامر الشريطة المائلة",         titleEn: "Slash Commands",         icon: <Terminal size={16} /> },
-  "cli":                  { category: "beginner",     titleAr: "واجهة سطر الأوامر",             titleEn: "CLI Reference",          icon: <Terminal size={16} /> },
-  "settings":             { category: "beginner",     titleAr: "الإعدادات والتكوين",            titleEn: "Settings",               icon: <Settings size={16} /> },
-  "tips":                 { category: "beginner",     titleAr: "نصائح وأفضل الممارسات",         titleEn: "Tips & Best Practices",  icon: <Lightbulb size={16} /> },
-  "resources":            { category: "beginner",     titleAr: "الموارد والمراجع",              titleEn: "Resources",              icon: <Database size={16} /> },
-  "CATALOG":              { category: "intermediate", titleAr: "كتالوج الميزات",               titleEn: "Features Catalog",       icon: <Layers size={16} /> },
-  "claude_concepts_guide":{ category: "intermediate", titleAr: "دليل مفاهيم Claude",            titleEn: "Claude Concepts Guide",  icon: <BookMarked size={16} /> },
-  "clean-code-rules":     { category: "intermediate", titleAr: "قواعد الكود النظيف",           titleEn: "Clean Code Rules",       icon: <Code2 size={16} /> },
-  "STYLE_GUIDE":          { category: "intermediate", titleAr: "دليل الأسلوب",                 titleEn: "Style Guide",            icon: <FileText size={16} /> },
-  "CONTRIBUTING":         { category: "intermediate", titleAr: "المساهمة في المشروع",           titleEn: "Contributing",           icon: <GitBranch size={16} /> },
-  "hooks":                { category: "intermediate", titleAr: "نظام Hooks",                   titleEn: "Hooks System",           icon: <Wrench size={16} /> },
-  "memory":               { category: "intermediate", titleAr: "إدارة الذاكرة",                titleEn: "Memory Management",      icon: <Database size={16} /> },
-  "skills":               { category: "intermediate", titleAr: "المهارات",                     titleEn: "Skills",                 icon: <GraduationCap size={16} /> },
-  "checkpoints":          { category: "intermediate", titleAr: "نقاط التفتيش",                 titleEn: "Checkpoints",            icon: <CheckCircle2 size={16} /> },
-  "security":             { category: "intermediate", titleAr: "أفضل ممارسات الأمان",          titleEn: "Security Best Practices",icon: <Shield size={16} /> },
-  "SECURITY":             { category: "intermediate", titleAr: "سياسة الأمان",                 titleEn: "Security Policy",        icon: <Shield size={16} /> },
-  "CODE_OF_CONDUCT":      { category: "intermediate", titleAr: "قواعد السلوك",                 titleEn: "Code of Conduct",        icon: <FileText size={16} /> },
-  "mcp":                  { category: "advanced",     titleAr: "بروتوكول MCP",                titleEn: "Model Context Protocol", icon: <Cpu size={16} /> },
-  "agents":               { category: "advanced",     titleAr: "سير عمل متعدد الوكلاء",        titleEn: "Multi-Agent Workflows",  icon: <GitBranch size={16} /> },
-  "workflows":            { category: "advanced",     titleAr: "سير العمل الآلي",              titleEn: "Automated Workflows",    icon: <Layers size={16} /> },
-  "plugins":              { category: "advanced",     titleAr: "الإضافات",                     titleEn: "Plugins",                icon: <Wrench size={16} /> },
-  "advanced":             { category: "advanced",     titleAr: "الميزات المتقدمة",              titleEn: "Advanced Features",      icon: <Zap size={16} /> },
-  "CLAUDE":               { category: "advanced",     titleAr: "ملف CLAUDE",                   titleEn: "CLAUDE File",            icon: <Code2 size={16} /> },
-  "CHANGELOG":            { category: "general",      titleAr: "سجل التغييرات",                titleEn: "Changelog",              icon: <FileText size={16} /> },
-  "RELEASE_NOTES":        { category: "general",      titleAr: "ملاحظات الإصدار",              titleEn: "Release Notes",          icon: <FileText size={16} /> },
-};
+// ─── Rank icon helper (matches API lowercase values) ─────────────────────────
+
+function getRankIcon(rank: string) {
+  if (rank === "platinum") return "💎";
+  if (rank === "gold")     return "🥇";
+  if (rank === "silver")   return "🥈";
+  return "🥉";
+}
+
+function toReadableTitle(section: string): string {
+  return section.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ─── Category config ──────────────────────────────────────────────────────────
 
 const categoryConfig: Record<Category, {
   labelAr: string; labelEn: string;
@@ -100,22 +94,12 @@ const categoryConfig: Record<Category, {
   },
 };
 
-function getRankIcon(rank: string) {
-  if (rank === "Platinum") return "💎";
-  if (rank === "Gold") return "🥇";
-  if (rank === "Silver") return "🥈";
-  return "🥉";
-}
-
-function toReadableTitle(section: string): string {
-  return section.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LearnPage() {
   const { lang } = useLang();
   const isAr = lang === "ar";
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
-  const [aiLoaded, setAiLoaded] = useState(false);
 
   const { data: sections = [], isLoading } = useQuery<Section[]>({
     queryKey: ["sections"],
@@ -127,16 +111,13 @@ export default function LearnPage() {
     queryFn: () => api.get("/learn/stats"),
   });
 
-  const suggestMutation = useMutation<SuggestNextResponse>({
-    mutationFn: () => api.post("/learn/suggest-next"),
-    onSuccess: () => setAiLoaded(true),
+  const { data: suggestion, isLoading: suggestLoading } = useQuery<SuggestNextResponse>({
+    queryKey: ["suggest-next", lang],
+    queryFn: () => api.post("/learn/suggest-next", { lang }),
+    enabled: sections.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
-
-  useEffect(() => {
-    if (sections.length > 0 && !aiLoaded) {
-      suggestMutation.mutate();
-    }
-  }, [sections.length]);
 
   const totalChunks = sections.reduce((a, s) => a + s.totalChunks, 0);
   const totalRead   = sections.reduce((a, s) => a + s.readChunks, 0);
@@ -148,7 +129,7 @@ export default function LearnPage() {
     beginner: [], intermediate: [], advanced: [], general: [],
   };
   for (const s of sections) {
-    const cat = sectionMeta[s.section]?.category ?? "general";
+    const cat = SECTION_META[s.section]?.category ?? "general";
     categorized[cat].push(s);
   }
 
@@ -168,8 +149,19 @@ export default function LearnPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-primary" size={32} />
+      <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+        {/* Skeleton for stats */}
+        <div className="rounded-xl border border-border bg-card/60 p-4 animate-pulse h-16" />
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-xl border border-border bg-card p-3 h-16 animate-pulse" />
+          ))}
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="rounded-xl border border-border bg-card h-24 animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -184,16 +176,16 @@ export default function LearnPage() {
             <Sparkles size={16} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            {suggestMutation.isPending ? (
+            {suggestLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 size={14} className="animate-spin" />
                 <span>{isAr ? "جاري تحليل تقدمك..." : "Analyzing your progress..."}</span>
               </div>
-            ) : suggestMutation.data ? (
+            ) : suggestion ? (
               <>
-                <p className="text-sm text-foreground leading-relaxed">{suggestMutation.data.message}</p>
-                {suggestMutation.data.suggestedSection && (
-                  <Link href={`/learn/${suggestMutation.data.suggestedSection}`}>
+                <p className="text-sm text-foreground leading-relaxed">{suggestion.message}</p>
+                {suggestion.suggestedSection && (
+                  <Link href={`/learn/${suggestion.suggestedSection}`}>
                     <a className="inline-flex items-center gap-1 mt-2 text-xs text-primary hover:underline font-medium">
                       {isAr ? "ابدأ الآن ←" : "Start now →"}
                     </a>
@@ -219,7 +211,7 @@ export default function LearnPage() {
           <p className="text-[11px] text-muted-foreground">{isAr ? "نقطة" : "Points"}</p>
           {stats && (
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {getRankIcon(stats.rank)} {stats.rank}
+              {getRankIcon(stats.rank)} {isAr ? stats.rank : stats.rank.charAt(0).toUpperCase() + stats.rank.slice(1)}
             </p>
           )}
         </div>
@@ -287,12 +279,12 @@ export default function LearnPage() {
               </h2>
               <div className="grid sm:grid-cols-2 gap-3">
                 {catSections.map(section => {
-                  const meta = sectionMeta[section.section];
+                  const meta = SECTION_META[section.section];
                   const title = meta
                     ? (isAr ? meta.titleAr : meta.titleEn)
                     : toReadableTitle(section.section);
                   const isComplete = section.progressPercent === 100;
-                  const icon = meta?.icon ?? <BookOpen size={16} />;
+                  const icon = (meta?.iconName && ICON_MAP[meta.iconName]) ?? <BookOpen size={16} />;
 
                   return (
                     <Link key={section.section} href={`/learn/${section.section}`}>
