@@ -20,6 +20,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Education Frontend"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -31,6 +35,18 @@ outputType = "console"
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run build && PORT=8080 pnpm --filter @workspace/api-server run start"
 waitForPort = 8080
+
+[[workflows.workflow]]
+name = "Education Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=25013 BASE_PATH=/education/ pnpm --filter @workspace/claude-education run dev"
+waitForPort = 25013
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
