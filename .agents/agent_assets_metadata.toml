@@ -6,3 +6,9 @@ id = "5al75habooQoMTroANblS"
 uri = "file://docs/learning-page-improvement-proposals.md"
 type = "text"
 title = "مقترحات تحسين صفحة التعلم"
+
+[[outputs]]
+id = "ghGolut8tYMCZeDJuCDrW"
+uri = "file://docs/implementation-plan-learning-v2.md"
+type = "text"
+title = "خطة التنفيذ التفصيلية — صفحة التعلم v2"
