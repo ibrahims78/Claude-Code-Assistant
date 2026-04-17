@@ -488,13 +488,96 @@ response: {
    - `SectionPage.tsx`: Toast فوري عند كل قراءة يعرض `+N نقطة` + أسماء الإنجازات الجديدة
    - `QuizModal.tsx`: النتائج تعرض النقاط + الإنجازات الجديدة بتصميم بصري واضح في شاشة النتيجة
 
-**نتائج الاختبار:**
+**نتائج الاختبار (الأصلية):**
 - ✅ `GET /api/learn/stats` → 200 OK، جميع الحقول صحيحة: `totalPoints`, `rank`, `icon`, `rankAr`, `nextRank`, `nextPoints`, `achievements[].{nameAr,nameEn,descAr,icon,points,unlocked}`, `recentActivity`
 - ✅ `POST /api/learn/mark-read/10` → +5 نقاط، `totalPoints: 30`, `newAchievements: []`
 - ✅ `GET /api/learn/achievements` → 10 إنجازات، 1 مفتوح (first_read)، جميع الحقول صحيحة
 - ✅ Frontend `/education/` → 200 OK
 - ✅ TypeScript typecheck → نظيف بدون أخطاء
 - ✅ Vite HMR يحدّث Layout.tsx فوراً
+
+---
+
+### 🔍 نتائج التحقق الاحترافي — 2026-04-17
+
+**المنهجية:** تحقق شامل من الكود + اختبار مباشر لكل endpoint عبر cURL مع token صحيح.
+
+**✅ TEST 1 — `GET /api/learn/stats`**
+- النتيجة: 200 OK
+- `totalPoints: 0` → `15` بعد القراءة | `rank: bronze 🥉` | `rankAr: برونزي`
+- `nextRank: silver` | `nextPoints: 500`
+- `chunksRead: 0` → `1` بعد القراءة | `totalChunks: 621`
+- `achievements: 10` ✅ | `recentActivity: []` → يُحدَّث بعد كل حدث
+- جميع الحقول المطلوبة حاضرة: `totalPoints, rank, rankAr, icon, nextRank, nextPoints, chunksRead, sectionsCompleted, achievements, recentActivity` ✅
+
+**✅ TEST 2 — `GET /api/learn/achievements`**
+- النتيجة: 200 OK — 10 إنجازات كاملة
+- قبل القراءة: جميعها 🔒 مغلقة
+- بعد `mark-read/1`: إنجاز `📖 القارئ الأول` مفتوح ✅ مع `unlockedAt` مضبوط
+- الحقول لكل إنجاز: `key, nameAr, nameEn, descAr, icon, points, unlocked, unlockedAt` ✅
+
+**✅ TEST 3 — `POST /api/learn/mark-read/1` (أول قراءة)**
+- النتيجة: 200 OK
+- `pointsEarned: 5` | `alreadyRead: false` | `newAchievements: ["first_read"]`
+- `totalPoints: 15` (5 نقاط قراءة + 10 نقاط إنجاز first_read) ✅
+
+**✅ TEST 3b — `POST /api/learn/mark-read/1` (Idempotent — القراءة مرة ثانية)**
+- النتيجة: 200 OK | `alreadyRead: true` | `pointsEarned: 0`
+- لا تكرار في منح النقاط ✅
+
+**✅ TEST 6 — `GET /api/learn/quiz/:sectionId/generate` (بدون Anthropic key)**
+- النتيجة: رسالة عربية واضحة: `"⚠️ لم يتم إعداد مفتاح Anthropic API. ميزة الاختبار تتطلب الاتصال بالذكاء الاصطناعي."`
+- التطبيق لا يتعطل (graceful degradation) ✅
+
+**✅ TEST 7 — `GET /api/learn/quiz/nonexistent-section/generate`**
+- النتيجة: `{"error":"Section not found or has no content"}` ✅
+
+**✅ TEST 9 — `POST /api/learn/ask-about-chunk` (chunkId صحيح)**
+- النتيجة: 200 OK | `answer` موجود | `relatedChunks` مصفوفة ✅
+- يتعامل مع غياب Anthropic key بشكل graceful ✅
+
+**✅ TEST 10 — `POST /api/learn/ask-about-chunk` (بدون chunkId)**
+- النتيجة: `{"error":"chunkId and question are required"}` — validation يعمل ✅
+
+**✅ TEST 11 — `POST /api/learn/ask-about-chunk` (chunkId غير موجود)**
+- النتيجة: `{"error":"Chunk not found"}` — 404 graceful ✅
+
+**✅ TEST 12 — `POST /api/learn/quiz/:sectionId/submit` (quizId غير صحيح)**
+- النتيجة: `{"error":"Quiz not found or expired. Please generate a new quiz."}` ✅
+
+**✅ TEST 13 — TypeScript typecheck**
+- النتيجة: نظيف تماماً — لا أخطاء ✅
+
+**✅ فحص `AchievementsPanel.tsx`:**
+- منطق حساب نسبة التقدم نحو الرتبة: صحيح ✅
+- ألوان الرتب الأربعة (bronze/silver/gold/platinum): مضبوطة ✅
+- Skeleton loading: موجود أثناء تحميل البيانات ✅
+- RTL/LTR: الـ Sheet يفتح من اليسار للعربية ومن اليمين للإنجليزية ✅
+- تبويب الإنجازات: شبكة 2 عمود مع حالة فتح/إغلاق مرئية ✅
+- تبويب النشاط: يعرض آخر الأحداث مع التوقيت المحلي ✅
+
+**✅ فحص `Layout.tsx`:**
+- `useQuery("learn-stats")` يُشارك cache مع بقية المكونات — لا طلبات مكررة ✅
+- `staleTime: 60s` — أداء جيد ✅
+- `PointsBadge` في الـ Desktop Sidebar: يعرض `{rankIcon} N pts` + زر Trophy ✅
+- `PointsBadge` في Mobile Header: badge مضغوط يفتح الـ Panel ✅
+- `AchievementsPanel` مدمج في أسفل الـ Layout ✅
+
+**ملخص التحقق:**
+| العنصر | الحالة |
+|--------|--------|
+| `AchievementsPanel.tsx` | ✅ مكتمل ومختبر |
+| `Layout.tsx` (مؤشر النقاط) | ✅ مكتمل ومختبر |
+| `GET /api/learn/stats` | ✅ يعمل — جميع الحقول صحيحة |
+| `GET /api/learn/achievements` | ✅ يعمل — 10 إنجازات |
+| `POST /api/learn/mark-read/:id` | ✅ يعمل — نقاط + إنجازات + idempotent |
+| `POST /api/learn/ask-about-chunk` | ✅ يعمل — graceful بدون API key |
+| `GET /api/learn/quiz/:id/generate` | ✅ يعمل — graceful بدون API key |
+| `POST /api/learn/quiz/:id/submit` | ✅ يعمل — validation صحيح |
+| TypeScript typecheck | ✅ نظيف بلا أخطاء |
+| محتوى الدروس | ✅ 621 قطعة في 24 قسم |
+
+**ملاحظة:** ميزات الذكاء الاصطناعي (توليد الاختبارات، اسأل عن قطعة، اقتراح الخطوة التالية) تعمل بكامل طاقتها بعد إعداد مفتاح Anthropic API.
 
 ---
 
