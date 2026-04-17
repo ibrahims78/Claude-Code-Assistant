@@ -79,84 +79,115 @@ router.post("/settings/test-ai", async (req: Request, res: Response): Promise<vo
   res.json(result);
 });
 
-// POST /api/admin/import — import content from GitHub
-router.post("/import", async (req: Request, res: Response): Promise<void> => {
+// Import job state
+let importJobRunning = false;
+let importJobProgress = { imported: 0, updated: 0, total: 0, done: false, error: "" };
+
+async function runImportJob(): Promise<void> {
+  importJobRunning = true;
+  importJobProgress = { imported: 0, updated: 0, total: 0, done: false, error: "" };
+
   try {
     const headers: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
-    }
-    
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+
     const listRes = await fetch("https://api.github.com/repos/ibrahims78/claude-howto/contents/", { headers });
-    if (!listRes.ok) {
-      res.status(400).json({ error: "Failed to fetch GitHub content" });
-      return;
-    }
-    
+    if (!listRes.ok) throw new Error("Failed to fetch GitHub content");
+
     const files = await listRes.json() as Array<{ name: string; download_url: string }>;
     const mdFiles = files.filter(f => f.name.endsWith(".md"));
-    
-    let imported = 0, updated = 0;
-    
+
+    type ChunkItem = { file: string; section: string; index: number; title: string; content: string };
+    const allChunks: ChunkItem[] = [];
+
     for (const file of mdFiles) {
       const contentRes = await fetch(file.download_url, { headers });
       const text = await contentRes.text();
-      
-      // Split into chunks by ## headers
       const chunks = text.split(/^## /m).filter(c => c.trim());
-      
       for (let i = 0; i < chunks.length; i++) {
         const lines = chunks[i].split("\n");
         const title = lines[0].trim();
         const content = lines.slice(1).join("\n").trim();
-        
         if (!title || !content) continue;
-        
-        // Translate to Arabic
+        allChunks.push({ file: file.name, section: file.name.replace(".md", ""), index: i, title, content });
+      }
+    }
+
+    importJobProgress.total = allChunks.length;
+
+    // Process in parallel batches of 5
+    const BATCH_SIZE = 5;
+    for (let b = 0; b < allChunks.length; b += BATCH_SIZE) {
+      const batch = allChunks.slice(b, b + BATCH_SIZE);
+      await Promise.all(batch.map(async ({ file, section, index, title, content }) => {
         let titleAr = title, contentAr = content;
         try {
-          const { content: arTitle } = await chatWithClaude(
-            [{ role: "user", content: `Translate to Arabic: "${title}"` }],
-            "You are a translator. Provide only the Arabic translation."
-          );
-          const { content: arContent } = await chatWithClaude(
-            [{ role: "user", content: `Translate to Arabic:\n${content.slice(0, 1000)}` }],
-            "You are a translator. Provide only the Arabic translation."
-          );
-          titleAr = arTitle;
-          contentAr = arContent;
+          const [arTitleRes, arContentRes] = await Promise.all([
+            chatWithClaude(
+              [{ role: "user", content: `Translate to Arabic: "${title}"` }],
+              "You are a translator. Provide only the Arabic translation."
+            ),
+            chatWithClaude(
+              [{ role: "user", content: `Translate to Arabic:\n${content.slice(0, 1000)}` }],
+              "You are a translator. Provide only the Arabic translation."
+            ),
+          ]);
+          titleAr = arTitleRes.content.replace(/^["'"']+|["'"']+$/g, "").trim();
+          contentAr = arContentRes.content.replace(/^["'"']+|["'"']+$/g, "").trim();
         } catch {}
-        
+
         const embedding = await generateEmbedding(content);
-        
+
         const existing = await db.execute(
-          sql`SELECT id FROM content_chunks WHERE source_file = ${file.name} AND order_index = ${i}`
+          sql`SELECT id FROM content_chunks WHERE source_file = ${file} AND order_index = ${index}`
         );
-        
+
         if (existing.rows.length > 0) {
           await db.execute(
-            sql`UPDATE content_chunks SET title=${title}, title_ar=${titleAr}, content=${content}, content_ar=${contentAr}, embedding=${JSON.stringify(embedding)}::vector, updated_at=NOW() WHERE source_file=${file.name} AND order_index=${i}`
+            sql`UPDATE content_chunks SET title=${title}, title_ar=${titleAr}, content=${content}, content_ar=${contentAr}, embedding=${JSON.stringify(embedding)}::vector, updated_at=NOW() WHERE source_file=${file} AND order_index=${index}`
           );
-          updated++;
+          importJobProgress.updated++;
         } else {
           await db.insert(contentChunksTable).values({
             title, titleAr, content, contentAr,
             category: "intermediate",
-            section: file.name.replace(".md", ""),
-            sourceFile: file.name,
-            orderIndex: i,
+            section,
+            sourceFile: file,
+            orderIndex: index,
             embedding,
           });
-          imported++;
+          importJobProgress.imported++;
         }
-      }
+      }));
     }
-    
+
     await setSettingValue("import_last_run", new Date().toISOString());
-    res.json({ imported, updated, total: imported + updated });
+    importJobProgress.done = true;
   } catch (err) {
-    res.status(500).json({ error: "Import failed", details: String(err) });
+    importJobProgress.error = String(err);
+    importJobProgress.done = true;
+  } finally {
+    importJobRunning = false;
   }
+}
+
+// POST /api/admin/import — start background import from GitHub
+router.post("/import", async (req: Request, res: Response): Promise<void> => {
+  if (importJobRunning) {
+    res.json({ status: "running", progress: importJobProgress });
+    return;
+  }
+  // Fire and forget
+  runImportJob().catch(() => {});
+  res.json({ status: "started", message: "Import started in background" });
+});
+
+// GET /api/admin/import/status — check import progress
+router.get("/import/status", async (_req: Request, res: Response): Promise<void> => {
+  res.json({
+    running: importJobRunning,
+    ...importJobProgress,
+  });
 });
 
 // POST /api/admin/translate — translate untranslated content chunks to Arabic
