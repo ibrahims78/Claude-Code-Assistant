@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ import { LearnAiDrawer } from "@/components/LearnAiDrawer";
 import { QuizModal } from "@/components/QuizModal";
 import { SECTION_META, getSectionTitle } from "@/lib/sections";
 
+const GITHUB_RAW = "https://raw.githubusercontent.com/ibrahims78/claude-howto/main/";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Chunk {
@@ -28,6 +31,7 @@ interface Chunk {
   contentAr?: string;
   category?: string;
   section?: string;
+  sourceFile?: string;
   isRead?: boolean;
 }
 
@@ -48,13 +52,28 @@ interface MarkReadResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function cleanContent(text: string): string {
+function cleanTitle(title: string): string {
+  return title.replace(/<[^>]+>/g, "").trim();
+}
+
+function resolveContentImages(text: string, sourceFile: string = ""): string {
+  const dir = sourceFile.includes("/")
+    ? sourceFile.split("/").slice(0, -1).join("/") + "/"
+    : "";
+
   return text
-    .replace(/<picture[\s\S]*?<\/picture>/gi, "")
-    .replace(/<source[^>]*>/gi, "")
-    .replace(/<img[^>]*>/gi, "")
-    .replace(/!\[.*?\]\(resources\/.*?\)/g, "")
-    .replace(/^\s*\n+/, "")
+    .replace(/src="((?!http|data:)[^"]+)"/g, (_, src: string) => {
+      const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
+      return `src="${GITHUB_RAW}${cleaned}"`;
+    })
+    .replace(/srcset="((?!http|data:)[^"]+)"/g, (_, src: string) => {
+      const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
+      return `srcset="${GITHUB_RAW}${cleaned}"`;
+    })
+    .replace(/!\[([^\]]*)\]\(((?!http)[^)]+)\)/g, (_, alt: string, src: string) => {
+      const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
+      return `![${alt}](${GITHUB_RAW}${cleaned})`;
+    })
     .trim();
 }
 
@@ -63,19 +82,46 @@ function MarkdownContent({ content, isArabic }: { content: string; isArabic: boo
     <div
       className={cn(
         "prose prose-sm prose-invert max-w-none",
-        "prose-headings:text-foreground prose-headings:font-semibold",
-        "prose-p:text-muted-foreground prose-p:leading-relaxed",
-        "prose-strong:text-foreground",
-        "prose-code:text-purple-300 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs",
-        "prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:text-xs",
-        "prose-table:text-xs prose-th:text-foreground prose-th:bg-muted/50 prose-td:text-muted-foreground",
+        "prose-headings:text-foreground prose-headings:font-bold prose-headings:mb-3 prose-headings:mt-6",
+        "prose-h1:text-xl prose-h2:text-lg prose-h3:text-base",
+        "prose-p:text-muted-foreground prose-p:leading-relaxed prose-p:mb-4",
+        "prose-strong:text-foreground prose-strong:font-semibold",
+        "prose-em:text-muted-foreground/90",
+        "prose-code:text-purple-300 prose-code:bg-purple-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:border prose-code:border-purple-500/20",
+        "prose-pre:bg-[#0d0d17] prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-pre:text-xs prose-pre:overflow-x-auto prose-pre:p-4",
+        "prose-table:text-xs prose-th:text-foreground prose-th:bg-muted/60 prose-th:font-semibold prose-td:text-muted-foreground prose-table:border prose-table:border-border prose-td:border prose-td:border-border prose-th:border prose-th:border-border",
         "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
-        "prose-li:text-muted-foreground prose-li:leading-relaxed",
-        "prose-blockquote:border-primary/40 prose-blockquote:text-muted-foreground",
+        "prose-li:text-muted-foreground prose-li:leading-relaxed prose-li:mb-1",
+        "prose-ul:my-3 prose-ol:my-3",
+        "prose-blockquote:border-primary/40 prose-blockquote:text-muted-foreground prose-blockquote:bg-primary/5 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg",
+        "prose-img:rounded-xl prose-img:border prose-img:border-border prose-img:my-4 prose-img:max-w-full prose-img:shadow-lg",
+        "prose-hr:border-border prose-hr:my-6",
         isArabic ? "text-right" : "text-left"
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={{
+          img: ({ src, alt, ...props }) => (
+            <img
+              src={src}
+              alt={alt || ""}
+              {...props}
+              className="rounded-xl border border-border my-4 max-w-full shadow-lg"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ),
+          picture: ({ children, ...props }) => (
+            <picture {...props}>{children}</picture>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -140,10 +186,14 @@ export default function SectionPage() {
     },
   });
 
-  const getTitle = (chunk: Chunk) => isAr ? (chunk.titleAr || chunk.title) : chunk.title;
+  const getTitle = (chunk: Chunk) => {
+    const raw = isAr ? (chunk.titleAr || chunk.title) : chunk.title;
+    return cleanTitle(raw);
+  };
+
   const getContent = (chunk: Chunk) => {
     const raw = isAr ? (chunk.contentAr || chunk.content) : chunk.content;
-    return cleanContent(raw);
+    return resolveContentImages(raw, chunk.sourceFile || "");
   };
 
   const activeChunk = chunks[activeChunkIndex] ?? null;
@@ -153,12 +203,10 @@ export default function SectionPage() {
 
   const sectionTitle = getSectionTitle(sectionId, lang);
 
-  // Scroll reading area to top on chunk change
   useEffect(() => {
     readingAreaRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [activeChunkIndex]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -299,13 +347,12 @@ export default function SectionPage() {
                         : <Circle size={14} className={isActive ? "text-primary" : "text-muted-foreground/50"} />
                       }
                     </span>
-                    <span className="leading-snug line-clamp-2 text-xs">{title}</span>
+                    <span className="leading-snug line-clamp-2 text-xs">{title || `${isAr ? "قطعة" : "Chunk"} ${index + 1}`}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Quiz button at bottom of sidebar — now correctly opens QuizModal */}
             {allComplete && (
               <div className="p-3 mt-auto border-t border-border">
                 <Button
@@ -347,22 +394,25 @@ export default function SectionPage() {
           <div className="p-5 md:p-8 max-w-2xl mx-auto">
 
             {/* Chunk header */}
-            <div className="mb-6">
+            <div className="mb-6 pb-4 border-b border-border">
               <div className="flex items-start justify-between gap-3 mb-2">
-                <h2 className="text-lg font-bold text-foreground leading-snug">
-                  {getTitle(activeChunk)}
-                </h2>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-medium border border-primary/20">
+                      {activeChunkIndex + 1} / {chunks.length}
+                    </span>
+                    {activeChunk.category && (
+                      <span className="capitalize">{activeChunk.category}</span>
+                    )}
+                  </div>
+                  {getTitle(activeChunk) && (
+                    <h2 className="text-lg font-bold text-foreground leading-snug">
+                      {getTitle(activeChunk)}
+                    </h2>
+                  )}
+                </div>
                 {activeChunk.isRead && (
-                  <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-0.5" />
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{activeChunkIndex + 1} / {chunks.length}</span>
-                {activeChunk.category && (
-                  <>
-                    <span>·</span>
-                    <span>{activeChunk.category}</span>
-                  </>
+                  <CheckCircle2 size={18} className="text-green-500 shrink-0 mt-1" />
                 )}
               </div>
             </div>
@@ -395,7 +445,6 @@ export default function SectionPage() {
                 </div>
               )}
 
-              {/* Translate button — shown when Arabic text not yet available */}
               {(!activeChunk.contentAr || activeChunk.contentAr === activeChunk.content) && (
                 <Button
                   size="sm"

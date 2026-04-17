@@ -14,7 +14,7 @@ import {
   List, Map, Zap, Terminal, Settings, Lightbulb, Database,
   Layers, BookMarked, Code2, FileText, GitBranch, Wrench, Shield, Cpu,
 } from "lucide-react";
-import { SECTION_META, type Category } from "@/lib/sections";
+import { SECTION_META, getSectionOrder, type Category } from "@/lib/sections";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   BookOpen: <BookOpen size={16} />, List: <List size={16} />, Map: <Map size={16} />,
@@ -131,6 +131,9 @@ export default function LearnPage() {
   for (const s of sections) {
     const cat = SECTION_META[s.section]?.category ?? "general";
     categorized[cat].push(s);
+  }
+  for (const cat of Object.keys(categorized) as Category[]) {
+    categorized[cat].sort((a, b) => getSectionOrder(a.section) - getSectionOrder(b.section));
   }
 
   const filterButtons: { key: Filter; arLabel: string; enLabel: string }[] = [
