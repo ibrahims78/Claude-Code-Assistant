@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db, contentChunksTable, userProgressTable } from "@workspace/db";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
+import { chatWithAI } from "../lib/ai.js";
 import type { User } from "@workspace/db";
 
 const router = Router();
@@ -94,6 +95,49 @@ router.get("/progress", requireAuth, async (req: Request, res: Response): Promis
   const progress = await db.select().from(userProgressTable)
     .where(eq(userProgressTable.userId, user.id));
   res.json(progress.map(p => p.chunkId));
+});
+
+// POST /api/content/translate-chunk — AI-translate a chunk to Arabic (or English)
+router.post("/translate-chunk", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { chunkId, targetLang = "ar" } = req.body as { chunkId: number; targetLang?: "ar" | "en" };
+
+  if (!chunkId) {
+    res.status(400).json({ error: "chunkId is required" });
+    return;
+  }
+
+  const [chunk] = await db.select().from(contentChunksTable).where(eq(contentChunksTable.id, chunkId));
+  if (!chunk) {
+    res.status(404).json({ error: "Chunk not found" });
+    return;
+  }
+
+  const sourceText = targetLang === "ar" ? chunk.content : (chunk.contentAr || chunk.content);
+  const targetLangName = targetLang === "ar" ? "Arabic" : "English";
+  const sourceLangName = targetLang === "ar" ? "English" : "Arabic";
+
+  try {
+    const result = await chatWithAI(
+      [{ role: "user", content: `Translate the following ${sourceLangName} text to ${targetLangName}. Return ONLY the translated text, preserving all markdown formatting:\n\n${sourceText}` }],
+      `You are a professional technical translator specializing in software development documentation. Translate accurately while preserving markdown formatting, code blocks, and technical terms.`
+    );
+
+    const translatedText = result.content.trim();
+
+    if (targetLang === "ar") {
+      await db.update(contentChunksTable)
+        .set({ contentAr: translatedText, updatedAt: new Date() })
+        .where(eq(contentChunksTable.id, chunkId));
+    } else {
+      await db.update(contentChunksTable)
+        .set({ content: translatedText, updatedAt: new Date() })
+        .where(eq(contentChunksTable.id, chunkId));
+    }
+
+    res.json({ success: true, translatedText, chunkId, targetLang });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Translation failed" });
+  }
 });
 
 export default router;

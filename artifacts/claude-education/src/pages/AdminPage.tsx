@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, Shield, Link2, Languages } from "lucide-react";
+import { Users, BookOpen, MessageCircle, Settings, Download, RefreshCw, Shield, Link2, Languages, Github } from "lucide-react";
 
 interface AdminStats {
   totalUsers: number;
@@ -25,9 +25,12 @@ export default function AdminPage() {
   const [, setLocation] = useLocation();
   const [importing, setImporting] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ sections: number; chunks: number; inserted: number; updated: number } | null>(null);
   const [translateResult, setTranslateResult] = useState<{ translated: number; remaining: number } | null>(null);
 
   interface TranslateResult { translated: number; remaining: number; message: string; }
+  interface SyncResult { success: boolean; message: string; sections: number; chunks: number; inserted: number; updated: number; }
 
   if (user?.role !== "admin") {
     return (
@@ -52,6 +55,21 @@ export default function AdminPage() {
       toast({ title: t("error"), description: err.message, variant: "destructive" });
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleSyncGithub = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await api.post("/admin/sync-github") as SyncResult;
+      setSyncResult(result);
+      toast({ title: result.message || "تمت المزامنة بنجاح" });
+      refetch();
+    } catch (err: any) {
+      toast({ title: "خطأ في المزامنة", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -112,27 +130,38 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Last Import */}
+      {/* Content Management */}
       <Card className="border-border bg-card">
         <CardContent className="p-4 space-y-3">
+
+          {/* Sync from GitHub */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">{t("lastImport")}</p>
+              <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <Github size={14} className="text-muted-foreground" />
+                مزامنة المحتوى من GitHub
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {stats?.importLastRun ? new Date(stats.importLastRun).toLocaleString("ar") : "—"}
+                {syncResult
+                  ? `✅ ${syncResult.sections} قسم · ${syncResult.chunks} جزء (جديد: ${syncResult.inserted} · محدَّث: ${syncResult.updated})`
+                  : stats?.importLastRun
+                    ? `آخر تحديث: ${new Date(stats.importLastRun).toLocaleString("ar")}`
+                    : "جلب جميع ملفات Markdown من المستودع وتحديث قاعدة البيانات"}
               </p>
             </div>
             <Button
               size="sm"
               variant="outline"
-              className="gap-2 border-border text-muted-foreground"
-              onClick={handleImport}
-              disabled={importing}
+              className="gap-2 border-green-500/30 text-green-400 hover:bg-green-500/10 shrink-0"
+              onClick={handleSyncGithub}
+              disabled={syncing}
             >
-              <RefreshCw size={14} className={importing ? "animate-spin" : ""} />
-              {importing ? t("importing") : t("importContent")}
+              <Github size={14} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "يجلب..." : "مزامنة"}
             </Button>
           </div>
+
+          {/* Translate content */}
           <div className="flex items-center justify-between border-t border-border pt-3">
             <div>
               <p className="text-sm font-medium text-foreground">ترجمة المحتوى إلى العربية</p>
@@ -153,6 +182,7 @@ export default function AdminPage() {
               {translating ? "يترجم..." : "ترجمة"}
             </Button>
           </div>
+
         </CardContent>
       </Card>
 

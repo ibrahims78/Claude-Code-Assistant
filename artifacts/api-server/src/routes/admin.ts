@@ -9,6 +9,7 @@ import { requireAuth, requireAdmin } from "../lib/auth.js";
 import { getSettingValue, setSettingValue } from "../lib/settings.js";
 import { generateEmbedding, chatWithClaude } from "../lib/claude.js";
 import { testAIKey } from "../lib/ai.js";
+import { syncFromGithub } from "../lib/github-cache.js";
 import type { User } from "@workspace/db";
 
 const router = Router();
@@ -440,6 +441,21 @@ router.post("/resources/import-url", async (req: Request, res: Response): Promis
     res.status(201).json(resource);
   } catch (err) {
     res.status(500).json({ error: "Failed to import resource" });
+  }
+});
+
+// POST /api/admin/sync-github — fetch latest content from GitHub and update DB
+router.post("/sync-github", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await syncFromGithub();
+    await setSettingValue("import_last_run", result.fetchedAt);
+    res.json({
+      success: true,
+      message: `تم جلب ${result.chunks} جزء من ${result.sections} قسم من GitHub`,
+      ...result,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Failed to sync from GitHub" });
   }
 });
 

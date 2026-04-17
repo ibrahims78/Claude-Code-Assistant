@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, ArrowLeft, CheckCircle2, Circle, ChevronLeft, ChevronRight,
-  Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2
+  Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2, Languages
 } from "lucide-react";
 import { LearnAiDrawer } from "@/components/LearnAiDrawer";
 import { QuizModal } from "@/components/QuizModal";
@@ -29,6 +29,13 @@ interface Chunk {
   category?: string;
   section?: string;
   isRead?: boolean;
+}
+
+interface TranslateResult {
+  success: boolean;
+  translatedText: string;
+  chunkId: number;
+  targetLang: string;
 }
 
 interface MarkReadResponse {
@@ -112,6 +119,24 @@ export default function SectionPage() {
             : undefined,
         });
       }
+    },
+  });
+
+  const translateMutation = useMutation<TranslateResult, Error, { chunkId: number; targetLang: "ar" | "en" }>({
+    mutationFn: ({ chunkId, targetLang }) => api.post("/content/translate-chunk", { chunkId, targetLang }),
+    onSuccess: (data) => {
+      qc.setQueryData(["section", sectionId], (old: Chunk[] | undefined) =>
+        (old || []).map(c => {
+          if (c.id !== data.chunkId) return c;
+          return data.targetLang === "ar"
+            ? { ...c, contentAr: data.translatedText }
+            : { ...c, content: data.translatedText };
+        })
+      );
+      toast({ title: isAr ? "✅ تمت الترجمة بنجاح" : "✅ Translation complete" });
+    },
+    onError: (err) => {
+      toast({ title: isAr ? "فشلت الترجمة" : "Translation failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -368,6 +393,23 @@ export default function SectionPage() {
                   <CheckCircle2 size={15} />
                   <span>{isAr ? "تمت القراءة" : "Read"}</span>
                 </div>
+              )}
+
+              {/* Translate button — shown when Arabic text not yet available */}
+              {(!activeChunk.contentAr || activeChunk.contentAr === activeChunk.content) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/50"
+                  onClick={() => translateMutation.mutate({ chunkId: activeChunk.id, targetLang: "ar" })}
+                  disabled={translateMutation.isPending && translateMutation.variables?.chunkId === activeChunk.id}
+                >
+                  {(translateMutation.isPending && translateMutation.variables?.chunkId === activeChunk.id)
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Languages size={14} />
+                  }
+                  {isAr ? "ترجم إلى العربية بالذكاء الاصطناعي" : "Translate to Arabic (AI)"}
+                </Button>
               )}
 
               <div className="flex items-center gap-2 sm:ms-auto">

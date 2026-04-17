@@ -5,6 +5,7 @@ import { logger } from "./lib/logger.js";
 import { setIo } from "./lib/socket-io.js";
 import { reconnectOnBoot } from "./lib/whatsapp-manager.js";
 import { hashPassword } from "./lib/auth.js";
+import { loadCacheOnStartup } from "./lib/github-cache.js";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -70,6 +71,11 @@ server.listen(port, () => {
 
   seedDefaultAdmin().catch((err: unknown) => {
     logger.error({ err }, "Error during seedDefaultAdmin");
+  });
+
+  // Load GitHub content cache into DB on startup
+  loadCacheOnStartup().catch((err: unknown) => {
+    logger.error({ err }, "Error during loadCacheOnStartup");
   });
 
   // Reconnect WhatsApp sessions that had autoReconnect enabled
