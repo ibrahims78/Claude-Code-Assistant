@@ -113,28 +113,38 @@ router.post("/translate-chunk", requireAuth, async (req: Request, res: Response)
   }
 
   const sourceText = targetLang === "ar" ? chunk.content : (chunk.contentAr || chunk.content);
+  const sourceTitle = targetLang === "ar" ? chunk.title : (chunk.titleAr || chunk.title);
   const targetLangName = targetLang === "ar" ? "Arabic" : "English";
   const sourceLangName = targetLang === "ar" ? "English" : "Arabic";
 
   try {
-    const result = await chatWithAI(
-      [{ role: "user", content: `Translate the following ${sourceLangName} text to ${targetLangName}. Return ONLY the translated text, preserving all markdown formatting:\n\n${sourceText}` }],
-      `You are a professional technical translator specializing in software development documentation. Translate accurately while preserving markdown formatting, code blocks, and technical terms.`
-    );
+    const systemPrompt = `You are a professional technical translator specializing in software development documentation. Translate accurately while preserving markdown formatting, code blocks, and technical terms.`;
 
-    const translatedText = result.content.trim();
+    const [contentResult, titleResult] = await Promise.all([
+      chatWithAI(
+        [{ role: "user", content: `Translate the following ${sourceLangName} text to ${targetLangName}. Return ONLY the translated text, preserving all markdown formatting:\n\n${sourceText}` }],
+        systemPrompt
+      ),
+      chatWithAI(
+        [{ role: "user", content: `Translate this ${sourceLangName} title to ${targetLangName}. Return ONLY the translated title, no extra text:\n\n${sourceTitle}` }],
+        systemPrompt
+      ),
+    ]);
+
+    const translatedText = contentResult.content.trim();
+    const translatedTitle = titleResult.content.trim().replace(/^["'"']+|["'"']+$/g, "");
 
     if (targetLang === "ar") {
       await db.update(contentChunksTable)
-        .set({ contentAr: translatedText, updatedAt: new Date() })
+        .set({ contentAr: translatedText, titleAr: translatedTitle, updatedAt: new Date() })
         .where(eq(contentChunksTable.id, chunkId));
     } else {
       await db.update(contentChunksTable)
-        .set({ content: translatedText, updatedAt: new Date() })
+        .set({ content: translatedText, title: translatedTitle, updatedAt: new Date() })
         .where(eq(contentChunksTable.id, chunkId));
     }
 
-    res.json({ success: true, translatedText, chunkId, targetLang });
+    res.json({ success: true, translatedText, translatedTitle, chunkId, targetLang });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Translation failed" });
   }
