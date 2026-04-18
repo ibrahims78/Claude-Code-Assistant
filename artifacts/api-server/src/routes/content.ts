@@ -150,4 +150,29 @@ router.post("/translate-chunk", requireAuth, async (req: Request, res: Response)
   }
 });
 
+// POST /api/content/revert-chunk  — clear Arabic translation, restore original
+router.post("/revert-chunk", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { chunkId } = req.body as { chunkId: number };
+
+  if (!chunkId) {
+    res.status(400).json({ error: "chunkId is required" });
+    return;
+  }
+
+  const [chunk] = await db.select().from(contentChunksTable)
+    .where(eq(contentChunksTable.id, chunkId))
+    .limit(1);
+
+  if (!chunk) {
+    res.status(404).json({ error: "Chunk not found" });
+    return;
+  }
+
+  await db.update(contentChunksTable)
+    .set({ contentAr: null, titleAr: null, updatedAt: new Date() })
+    .where(eq(contentChunksTable.id, chunkId));
+
+  res.json({ success: true, chunkId });
+});
+
 export default router;

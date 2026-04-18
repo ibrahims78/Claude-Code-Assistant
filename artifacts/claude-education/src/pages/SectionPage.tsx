@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, ArrowLeft, CheckCircle2, Circle, ChevronLeft, ChevronRight,
-  Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2, Languages
+  Star, Brain, PanelLeftClose, PanelLeftOpen, Loader2, Languages, RotateCcw
 } from "lucide-react";
 import { LearnAiDrawer } from "@/components/LearnAiDrawer";
 import { QuizModal } from "@/components/QuizModal";
@@ -184,6 +184,21 @@ export default function SectionPage() {
     },
     onError: (err) => {
       toast({ title: isAr ? "فشلت الترجمة" : "Translation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const revertMutation = useMutation<{ success: boolean; chunkId: number }, Error, number>({
+    mutationFn: (chunkId: number) => api.post("/content/revert-chunk", { chunkId }),
+    onSuccess: (data) => {
+      qc.setQueryData(["section", sectionId], (old: Chunk[] | undefined) =>
+        (old || []).map(c =>
+          c.id === data.chunkId ? { ...c, contentAr: undefined, titleAr: undefined } : c
+        )
+      );
+      toast({ title: isAr ? "↩️ تمت إعادة التعيين للمحتوى الأصلي" : "↩️ Reverted to original content" });
+    },
+    onError: (err) => {
+      toast({ title: isAr ? "فشلت الإعادة" : "Revert failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -450,7 +465,7 @@ export default function SectionPage() {
                 </div>
               )}
 
-              {(!activeChunk.contentAr || activeChunk.contentAr === activeChunk.content) && (
+              {(!activeChunk.contentAr || activeChunk.contentAr === activeChunk.content) ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -463,6 +478,20 @@ export default function SectionPage() {
                     : <Languages size={14} />
                   }
                   {isAr ? "ترجم إلى العربية بالذكاء الاصطناعي" : "Translate to Arabic (AI)"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/50"
+                  onClick={() => revertMutation.mutate(activeChunk.id)}
+                  disabled={revertMutation.isPending && revertMutation.variables === activeChunk.id}
+                >
+                  {(revertMutation.isPending && revertMutation.variables === activeChunk.id)
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <RotateCcw size={14} />
+                  }
+                  {isAr ? "إعادة المحتوى الأصلي" : "Revert to Original"}
                 </Button>
               )}
 
