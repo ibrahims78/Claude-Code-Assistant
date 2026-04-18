@@ -187,12 +187,12 @@ export default function SectionPage() {
     },
   });
 
-  const revertMutation = useMutation<{ success: boolean; chunkId: number }, Error, number>({
+  const revertMutation = useMutation<{ success: boolean }, Error, number>({
     mutationFn: (chunkId: number) => api.post("/content/revert-chunk", { chunkId }),
-    onSuccess: (data) => {
+    onSuccess: (_data, chunkId) => {
       qc.setQueryData(["section", sectionId], (old: Chunk[] | undefined) =>
         (old || []).map(c =>
-          c.id === data.chunkId ? { ...c, contentAr: undefined, titleAr: undefined } : c
+          c.id === chunkId ? { ...c, contentAr: undefined, titleAr: undefined } : c
         )
       );
       toast({ title: isAr ? "↩️ تمت إعادة التعيين للمحتوى الأصلي" : "↩️ Reverted to original content" });
