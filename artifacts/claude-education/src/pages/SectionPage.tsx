@@ -38,6 +38,7 @@ interface Chunk {
 interface TranslateResult {
   success: boolean;
   translatedText: string;
+  translatedTitle?: string;
   chunkId: number;
   targetLang: string;
 }
@@ -175,8 +176,8 @@ export default function SectionPage() {
         (old || []).map(c => {
           if (c.id !== data.chunkId) return c;
           return data.targetLang === "ar"
-            ? { ...c, contentAr: data.translatedText }
-            : { ...c, content: data.translatedText };
+            ? { ...c, contentAr: data.translatedText, ...(data.translatedTitle ? { titleAr: data.translatedTitle } : {}) }
+            : { ...c, content: data.translatedText, ...(data.translatedTitle ? { title: data.translatedTitle } : {}) };
         })
       );
       toast({ title: isAr ? "✅ تمت الترجمة بنجاح" : "✅ Translation complete" });
