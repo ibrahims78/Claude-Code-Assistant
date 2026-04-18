@@ -16,3 +16,4 @@ export * from "./telegram-conversations";
 export * from "./user-points";
 export * from "./user-achievements";
 export * from "./quiz-attempts";
+export * from "./github-files";

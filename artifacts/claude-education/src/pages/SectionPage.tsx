@@ -20,6 +20,7 @@ import { QuizModal } from "@/components/QuizModal";
 import { SECTION_META, getSectionTitle } from "@/lib/sections";
 
 const GITHUB_RAW = "https://raw.githubusercontent.com/ibrahims78/claude-howto/main/";
+const LOCAL_IMAGES_BASE = "/api/static/images/";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,15 +64,18 @@ function resolveContentImages(text: string, sourceFile: string = ""): string {
     : "";
 
   return text
-    .replace(/src="((?!http|data:)[^"]+)"/g, (_, src: string) => {
+    .replace(/src="((?!http|data:|\/api\/static)[^"]+)"/g, (_, src: string) => {
+      if (src.startsWith("/")) return `src="${src}"`;
       const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
       return `src="${GITHUB_RAW}${cleaned}"`;
     })
-    .replace(/srcset="((?!http|data:)[^"]+)"/g, (_, src: string) => {
+    .replace(/srcset="((?!http|data:|\/api\/static)[^"]+)"/g, (_, src: string) => {
+      if (src.startsWith("/")) return `srcset="${src}"`;
       const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
       return `srcset="${GITHUB_RAW}${cleaned}"`;
     })
-    .replace(/!\[([^\]]*)\]\(((?!http)[^)]+)\)/g, (_, alt: string, src: string) => {
+    .replace(/!\[([^\]]*)\]\(((?!http|\/api\/static)[^)]+)\)/g, (_, alt: string, src: string) => {
+      if (src.startsWith("/")) return `![${alt}](${src})`;
       const cleaned = src.startsWith("../") ? src.slice(3) : dir + src;
       return `![${alt}](${GITHUB_RAW}${cleaned})`;
     })

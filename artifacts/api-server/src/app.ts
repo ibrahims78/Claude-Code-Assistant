@@ -4,6 +4,8 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import path from "path";
+import fs from "fs";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { apiRateLimiter } from "./lib/rate-limit.js";
@@ -66,6 +68,11 @@ app.use("/api/", apiRateLimiter);
 
 // All routes
 app.use("/api", router);
+
+// Serve static images downloaded from GitHub
+const imagesDir = path.join(process.cwd(), "data", "images");
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+app.use("/api/static/images", express.static(imagesDir, { maxAge: "1h" }));
 
 // Proxy frontend apps (preserve full path since Vite base includes the prefix)
 app.use("/education", createProxyMiddleware({

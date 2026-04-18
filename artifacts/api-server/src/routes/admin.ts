@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import {
   db, usersTable, conversationsTable, chatMessagesTable,
   contentChunksTable, resourcesTable, resourceSuggestionsTable,
-  settingsTable, telegramUsersTable, auditLogsTable,
+  settingsTable, telegramUsersTable, auditLogsTable, githubFilesTable,
 } from "@workspace/db";
 import { eq, sql, count, and, ne, isNull, or } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth.js";
@@ -10,6 +10,7 @@ import { getSettingValue, setSettingValue } from "../lib/settings.js";
 import { generateEmbedding, chatWithClaude } from "../lib/claude.js";
 import { testAIKey } from "../lib/ai.js";
 import { syncFromGithub } from "../lib/github-cache.js";
+import { runFullGithubSync, getSyncProgress, isSyncRunning } from "../lib/github-sync.js";
 import type { User } from "@workspace/db";
 
 const router = Router();
@@ -457,6 +458,46 @@ router.post("/sync-github", async (_req: Request, res: Response): Promise<void> 
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Failed to sync from GitHub" });
   }
+});
+
+// POST /api/admin/sync-github-full — full sync: all markdown files + images from all directories
+router.post("/sync-github-full", async (_req: Request, res: Response): Promise<void> => {
+  if (isSyncRunning()) {
+    res.json({ status: "running", progress: getSyncProgress() });
+    return;
+  }
+  runFullGithubSync().catch(() => {});
+  res.json({ status: "started", message: "بدأت المزامنة الكاملة مع GitHub في الخلفية" });
+});
+
+// GET /api/admin/sync-github-full/status — get full sync progress
+router.get("/sync-github-full/status", async (_req: Request, res: Response): Promise<void> => {
+  res.json({
+    running: isSyncRunning(),
+    progress: getSyncProgress(),
+  });
+});
+
+// GET /api/admin/github-files — list all synced files from DB
+router.get("/github-files", async (req: Request, res: Response): Promise<void> => {
+  const type = req.query.type as string | undefined;
+  const files = type
+    ? await db.select().from(githubFilesTable).where(eq(githubFilesTable.type, type)).orderBy(githubFilesTable.path)
+    : await db.select().from(githubFilesTable).orderBy(githubFilesTable.path);
+  res.json(files);
+});
+
+// GET /api/admin/github-files/stats — summary of synced files
+router.get("/github-files/stats", async (_req: Request, res: Response): Promise<void> => {
+  const all = await db.select().from(githubFilesTable);
+  const markdown = all.filter(f => f.type === "markdown").length;
+  const images = all.filter(f => f.type === "image").length;
+  const lastSync = all.reduce((latest: string | null, f) => {
+    const ts = f.syncedAt?.toISOString() ?? null;
+    if (!latest || (ts && ts > latest)) return ts;
+    return latest;
+  }, null);
+  res.json({ total: all.length, markdown, images, lastSync });
 });
 
 export default router;
