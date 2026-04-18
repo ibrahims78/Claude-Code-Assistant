@@ -213,17 +213,22 @@ router.post("/suggest-next", async (req: Request, res: Response): Promise<void> 
   const suggestedSection = incompleteSections[0]?.[0] ?? null;
   const totalPoints = await getTotalPoints(user.id);
 
+  const validSectionIds = new Set(Object.keys(sectionTotals));
+  const validSectionList = [...validSectionIds].join(", ");
+
   const prompt = lang === "ar"
     ? `أنت مستشار تعليمي لمنصة تعلّم Claude Code.
 تقدم المستخدم:
 - المستوى المبتدئ: ${pct("beginner")}% مكتمل
 - المستوى المتوسط: ${pct("intermediate")}% مكتمل
 - المستوى المتقدم: ${pct("advanced")}% مكتمل
-- القسم المقترح: ${suggestedSection ?? "لا يوجد"}
+- القسم المقترح التالي: ${suggestedSection ?? "لا يوجد"}
 - النقاط الكلية: ${totalPoints}
 
 اكتب رسالة تشجيعية قصيرة جداً (جملة واحدة) باللغة العربية. لا تذكر أرقاماً بالضرورة.
-ثم في السطر الثاني اكتب فقط: SECTION:اسم_القسم
+ثم في السطر الثاني اكتب فقط: SECTION:معرف_القسم
+الأقسام المتاحة: ${validSectionList}
+يجب أن يكون معرف القسم من القائمة أعلاه فقط.
 مثال: رائع! استمر في تقدمك الممتاز.
 SECTION:slash-commands`
     : `You are a learning advisor for a Claude Code learning platform.
@@ -235,7 +240,9 @@ User progress:
 - Total points: ${totalPoints}
 
 Write a very short encouraging message (one sentence) in English. Numbers are optional.
-Then on the second line write only: SECTION:section_name
+Then on the second line write only: SECTION:section_id
+Available section IDs: ${validSectionList}
+The section ID must be exactly one from the list above.
 Example: Great progress! Keep up the excellent work.
 SECTION:slash-commands`;
 
@@ -251,7 +258,9 @@ SECTION:slash-commands`;
   const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
   const message = lines[0] ?? (lang === "ar" ? "استمر في التعلم!" : "Keep learning!");
   const sectionLine = lines.find(l => l.startsWith("SECTION:"));
-  const aiSuggestedSection = sectionLine ? sectionLine.replace("SECTION:", "").trim() : suggestedSection;
+  const aiRaw = sectionLine ? sectionLine.replace("SECTION:", "").trim() : null;
+  // Validate AI response — if it returns a file name or unknown ID, fall back to computed value
+  const aiSuggestedSection = (aiRaw && validSectionIds.has(aiRaw)) ? aiRaw : suggestedSection;
 
   res.json({
     message,
